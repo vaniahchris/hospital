@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
 export function AdminIcon({ name }: { name: string }) {
   const paths: Record<string, React.ReactNode> = {
@@ -19,9 +20,14 @@ export function AdminIcon({ name }: { name: string }) {
 
 export function AdminShell({ children, title }: { children: React.ReactNode; title: string }) {
   const path = usePathname();
+  const router = useRouter();
+  const [ready, setReady] = useState(false);
+  useEffect(()=>{if(sessionStorage.getItem('ndejje-admin-session')!=='active'){router.replace('/admin/login')}else{setReady(true)}},[router]);
   const links = [{href:'/admin',label:'Overview',icon:'dashboard'},{href:'/admin/questions',label:'Questions',icon:'questions'},{href:'/admin/responses',label:'Responses',icon:'responses'}];
   const active = (href:string) => href === '/admin' ? path === href : path.startsWith(href);
-  return <div className="admin-root"><aside className="admin-sidebar"><Link href="/" className="admin-logo"><span className="admin-logo-mark">+</span><span><strong>Ndejje Health</strong><small>FEEDBACK ADMIN</small></span></Link><nav className="admin-nav">{links.map(link=><Link className={active(link.href)?'active':''} href={link.href} key={link.href}><AdminIcon name={link.icon}/>{link.label}</Link>)}</nav><nav className="mobile-menu">{links.map(link=><Link className={active(link.href)?'active':''} href={link.href} key={link.href}>{link.label}</Link>)}</nav><div className="admin-side-bottom"><Link href="/" className="admin-preview-link">View feedback form ↗</Link><div className="admin-profile"><span className="admin-avatar">A</span><span><strong>Administrator</strong><small>Hospital admin</small></span></div></div></aside><div className="admin-main"><header className="admin-topbar"><h1>{title}</h1><span className="admin-live"><i/> System live</span></header>{children}</div></div>;
+  function logout(){sessionStorage.removeItem('ndejje-admin-session');router.replace('/admin/login')}
+  if(!ready)return <div className="admin-loading"><span/></div>;
+  return <div className="admin-root"><aside className="admin-sidebar"><Link href="/" className="admin-logo"><span className="admin-logo-mark">+</span><span><strong>Ndejje Health</strong><small>FEEDBACK ADMIN</small></span></Link><nav className="admin-nav">{links.map(link=><Link className={active(link.href)?'active':''} href={link.href} key={link.href}><AdminIcon name={link.icon}/>{link.label}</Link>)}</nav><nav className="mobile-menu">{links.map(link=><Link className={active(link.href)?'active':''} href={link.href} key={link.href}>{link.label}</Link>)}<button className="mobile-signout" onClick={logout}>Sign out</button></nav><div className="admin-side-bottom"><Link href="/" className="admin-preview-link">View feedback form ↗</Link><div className="admin-profile"><span className="admin-avatar">A</span><span><strong>Administrator</strong><small>Hospital admin</small></span><button className="logout-button" onClick={logout} title="Sign out" aria-label="Sign out">↪</button></div></div></aside><div className="admin-main"><header className="admin-topbar"><h1>{title}</h1><div className="topbar-actions"><span className="admin-live"><i/> System live</span><button className="topbar-logout" onClick={logout}>Sign out</button></div></header>{children}</div></div>;
 }
 
 export const responses = [

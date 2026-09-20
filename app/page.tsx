@@ -8,6 +8,15 @@ function Icon({ name, className = '' }: { name: string; className?: string }) {
   </svg>;
 }
 
+const emojiByName: Record<string, string> = {
+  excellent: '🤩', veryGood: '😀', good: '🙂', fair: '😐', poor: '😞',
+  clock: '🕐', definitely: '👍', probably: '👌', unsure: '🤔', probablyNot: '👎', definitelyNot: '🙅'
+};
+
+function AnswerEmoji({ name }: { name: string }) {
+  return <span className="answer-emoji" aria-hidden="true">{emojiByName[name]}</span>;
+}
+
 function Brand() {
   return <div className="brand"><svg viewBox="0 0 64 68" fill="none" aria-hidden="true"><path d="M25 2h13a5 5 0 0 1 5 5v16h15a5 5 0 0 1 5 5v13a5 5 0 0 1-5 5H43v16a5 5 0 0 1-5 5H25a5 5 0 0 1-5-5V46H5a5 5 0 0 1-5-5V28a5 5 0 0 1 5-5h15V7a5 5 0 0 1 5-5Z" fill="#1379dc"/><path d="M24 56c0-17 18-19 20-36-7 10-18 9-19 18m8 1c13 0 16-9 24-11" stroke="white" strokeWidth="2.7" strokeLinecap="round"/></svg><div><strong>Ndejje <span>Health Centre</span></strong><small>Care Today. A Healthier Tomorrow</small></div></div>;
 }
@@ -18,10 +27,10 @@ function Illustration() {
 
 const ratings = ['Excellent', 'Very Good', 'Good', 'Fair', 'Poor'];
 const questions = [
-  { title: 'How would you rate the overall quality of care you received today?', options: ratings, icons: ['smile', 'smile', 'smile', 'fair', 'poor'] },
-  { title: 'How would you rate the friendliness and professionalism of our staff?', options: ratings, icons: ['smile', 'smile', 'smile', 'fair', 'poor'] },
+  { title: 'How would you rate the overall quality of care you received today?', options: ratings, icons: ['excellent', 'veryGood', 'good', 'fair', 'poor'] },
+  { title: 'How would you rate the friendliness and professionalism of our staff?', options: ratings, icons: ['excellent', 'veryGood', 'good', 'fair', 'poor'] },
   { title: 'How long did you wait to receive service?', options: ['Very short (less than 15 minutes)', 'Short (15–30 minutes)', 'Reasonable (30 minutes–1 hour)', 'Long (1–2 hours)', 'Very long (more than 2 hours)'], icons: Array(5).fill('clock') },
-  { title: 'Would you recommend our hospital to friends or family?', options: ['Yes, definitely', 'Yes, probably', 'Not sure', 'Probably not', 'No, definitely not'], icons: ['up', 'up', 'down', 'down', 'down'] }
+  { title: 'Would you recommend our hospital to friends or family?', options: ['Yes, definitely', 'Yes, probably', 'Not sure', 'Probably not', 'No, definitely not'], icons: ['definitely', 'probably', 'unsure', 'probablyNot', 'definitelyNot'] }
 ];
 
 export default function Home() {
@@ -50,7 +59,7 @@ export default function Home() {
           <div className="progress" role="progressbar" aria-label="Feedback progress" aria-valuenow={step} aria-valuemin={0} aria-valuemax={5}>{[1,2,3,4,5].map(n=><span className={n <= step ? 'filled' : ''} key={n}/>)}</div>
           <form onSubmit={e => { e.preventDefault(); if (step === 5 || answers[step - 1]) setStep(step + 1); }}>
             <h1 className="question" ref={heading} tabIndex={-1} id="question">{step === 5 ? 'Any additional comments or suggestions?' : question.title}</h1>
-            {step < 5 ? <fieldset aria-labelledby="question"><legend className="sr-only">Select one answer</legend>{question.options.map((option, index)=><label className={`option ${answers[step-1] === option ? 'selected' : ''}`} key={option}><input type="radio" name={`question-${step}`} value={option} checked={answers[step-1] === option} onChange={() => setAnswers(previous => previous.map((answer, i) => i === step-1 ? option : answer))}/><Icon name={question.icons[index]}/><span>{option}</span>{answers[step-1] === option && <span className="selection-check" aria-hidden="true">✓</span>}</label>)}</fieldset> : <><label className="sr-only" htmlFor="comments">Your comments (optional)</label><textarea id="comments" value={comments} onChange={e=>setComments(e.target.value)} placeholder={'Write your comments here…\n(Optional)'} maxLength={2000}/><div className="comment-meta"><span>Please avoid including personal details.</span><span>{comments.length}/2000</span></div></>}
+            {step < 5 ? <fieldset aria-labelledby="question"><legend className="sr-only">Select one answer</legend>{question.options.map((option, index)=><label className={`option ${answers[step-1] === option ? 'selected' : ''}`} key={option}><input type="radio" name={`question-${step}`} value={option} checked={answers[step-1] === option} onChange={() => setAnswers(previous => previous.map((answer, i) => i === step-1 ? option : answer))}/><AnswerEmoji name={question.icons[index]}/><span>{option}</span>{answers[step-1] === option && <span className="selection-check" aria-hidden="true">✓</span>}</label>)}</fieldset> : <><label className="sr-only" htmlFor="comments">Your comments (optional)</label><textarea id="comments" value={comments} onChange={e=>setComments(e.target.value)} placeholder={'Write your comments here…\n(Optional)'} maxLength={2000}/><div className="comment-meta"><span>Please avoid including personal details.</span><span>{comments.length}/2000</span></div></>}
             <button type="submit" className="primary next" disabled={step < 5 && !answers[step-1]}>{step === 5 ? 'Complete Feedback' : 'Next'}{step < 5 && <Icon name="arrow"/>}</button>
             {step < 5 && <p className="answer-hint">Select an answer to continue</p>}
           </form>
