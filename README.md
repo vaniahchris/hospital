@@ -11,7 +11,7 @@ npm run dev
 
 Open http://localhost:3000.
 
-The frontend-only admin preview is available at http://localhost:3000/admin/login. It includes a preview login, analytics, editable question management, response review, and CSV export using mock data until Supabase is connected. Enter any password with the prefilled email to test the local login flow.
+Admin login is at http://localhost:3000/admin/login (Supabase Auth). The public form and admin dashboard read/write the connected Supabase project.
 
 ## Verify
 
@@ -20,4 +20,4 @@ npm run typecheck
 npm run build
 ```
 
-This is a frontend preview. Responses live only in React state and are cleared on refresh or returning home after completion. There are no network submissions, database integrations, or admin routes yet. Supabase persistence and an admin dashboard are the next phase.
+Copy `.env.example` to `.env` and set `NEXT_PUBLIC_SUPABASE_URL` plus `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
