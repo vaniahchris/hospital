@@ -54,13 +54,10 @@ function AnswerEmoji({ name }: { name: string }) {
 function Brand() {
   return (
     <div className="brand">
-      <svg viewBox="0 0 64 68" fill="none" aria-hidden="true">
-        <path d="M25 2h13a5 5 0 0 1 5 5v16h15a5 5 0 0 1 5 5v13a5 5 0 0 1-5 5H43v16a5 5 0 0 1-5 5H25a5 5 0 0 1-5-5V46H5a5 5 0 0 1-5-5V28a5 5 0 0 1 5-5h15V7a5 5 0 0 1 5-5Z" fill="#1379dc" />
-        <path d="M24 56c0-17 18-19 20-36-7 10-18 9-19 18m8 1c13 0 16-9 24-11" stroke="white" strokeWidth="2.7" strokeLinecap="round" />
-      </svg>
+      <img src="/value-family-hospital-logo.png" alt="Value Family Hospital logo" />
       <div>
-        <strong>Ndejje <span>Health Centre</span></strong>
-        <small>Care Today. A Healthier Tomorrow</small>
+        <strong>Value Family <span>Hospital</span></strong>
+        <small>Kitende · Service with a difference</small>
       </div>
     </div>
   );
@@ -212,8 +209,6 @@ export default function Home() {
 
   return (
     <main className="page">
-      <div className="ambient ambient-one" />
-      <div className="ambient ambient-two" />
       <div className="app-shell">
         <div className="desktop-brand">
           <Brand />
@@ -348,7 +343,7 @@ export default function Home() {
             </>
           )}
         </section>
-        <footer>Ndejje Health Centre <span>•</span> Care that puts you first</footer>
+        <footer>Value Family Hospital <span>•</span> Service with a difference</footer>
       </div>
     </main>
   );

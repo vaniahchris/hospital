@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 
 export default function AdminLogin() {
   const router = useRouter();
-  const [email, setEmail] = useState('admin@ndejjehealth.org');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -41,12 +41,12 @@ export default function AdminLogin() {
   return (
     <main className="login-page">
       <section className="login-story">
-        <Link href="/" className="login-brand">
-          <span>+</span>
-          <div>
-            <strong>Ndejje Health Centre</strong>
-            <small>Care Today. A Healthier Tomorrow</small>
-          </div>
+          <Link href="/" className="login-brand">
+            <img src="/value-family-hospital-logo.png" alt="Value Family Hospital logo" />
+            <div>
+              <strong>Value Family Hospital</strong>
+              <small>Kitende · Service with a difference</small>
+            </div>
         </Link>
         <div className="login-message">
           <span className="login-kicker">FEEDBACK ADMINISTRATION</span>
@@ -61,7 +61,7 @@ export default function AdminLogin() {
       </section>
       <section className="login-form-side">
         <form className="login-card" onSubmit={submit}>
-          <div className="login-mobile-brand"><span>+</span>Ndejje Health</div>
+          <div className="login-mobile-brand"><img src="/value-family-hospital-logo.png" alt="Value Family Hospital logo" />Value Family Hospital</div>
           <span className="login-lock">🔐</span>
           <h2>Welcome back</h2>
           <p>Sign in to manage feedback and view analytics.</p>

@@ -74,8 +74,8 @@ export function AdminShell({ children, title }: { children: React.ReactNode; tit
     <div className="admin-root">
       <aside className="admin-sidebar">
         <Link href="/" className="admin-logo">
-          <span className="admin-logo-mark">+</span>
-          <span><strong>Ndejje Health</strong><small>FEEDBACK ADMIN</small></span>
+          <img className="admin-logo-image" src="/value-family-hospital-logo.png" alt="Value Family Hospital logo" />
+          <span><strong>Value Family Hospital</strong><small>FEEDBACK ADMIN</small></span>
         </Link>
         <nav className="admin-nav">
           {links.map((link) => (
