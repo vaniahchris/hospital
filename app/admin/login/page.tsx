@@ -54,7 +54,6 @@ export default function AdminLogin() {
           <p>Review patient experiences, discover trends, and improve the questions that matter most.</p>
           <div className="login-stat">
             <strong>Live</strong>
-            <span>connected to Supabase</span>
           </div>
         </div>
         <p className="login-quote">Together for a Healthier Community</p>
@@ -62,7 +61,6 @@ export default function AdminLogin() {
       <section className="login-form-side">
         <form className="login-card" onSubmit={submit}>
           <div className="login-mobile-brand"><img src="/value-family-hospital-logo.png" alt="Value Family Hospital logo" />Value Family Hospital</div>
-          <span className="login-lock">🔐</span>
           <h2>Welcome back</h2>
           <p>Sign in to manage feedback and view analytics.</p>
           <label htmlFor="admin-email">Email address</label>
