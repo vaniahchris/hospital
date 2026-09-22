@@ -2,9 +2,14 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { AdminIcon, AdminShell } from './shared';
+import { LayoutDashboard, ListChecks, MessageSquareText, Users } from 'lucide-react';
+import { AdminShell } from './shared';
 import { createClient } from '@/lib/supabase/client';
 import { scoreForCare } from '@/lib/feedback';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 
 type AnswerJoin = {
   value: string;
@@ -18,6 +23,20 @@ type SubmissionJoin = {
 };
 
 const ratingLabels = ['Excellent', 'Very Good', 'Good', 'Fair', 'Poor'] as const;
+const chartColors = [
+  'var(--chart-1)',
+  'var(--chart-2)',
+  'var(--chart-3)',
+  'var(--chart-4)',
+  'var(--chart-5)',
+];
+
+const metricIcons = {
+  responses: MessageSquareText,
+  people: Users,
+  dashboard: LayoutDashboard,
+  questions: ListChecks,
+} as const;
 
 export default function AdminOverview() {
   const [total, setTotal] = useState(0);
@@ -68,77 +87,114 @@ export default function AdminOverview() {
   }, []);
 
   const metrics = useMemo(
-    () => [
-      ['responses', 'Total responses', String(total), 'All time'],
-      ['people', 'This month', String(monthCount), nowMonthLabel()],
-      ['dashboard', 'Average rating', average ? average.toFixed(1) : '—', 'Out of 5'],
-      ['questions', 'Recommend us', total ? `${recommendPct}%` : '—', 'Yes answers'],
-    ] as const,
+    () =>
+      [
+        ['responses', 'Total responses', String(total), 'All time'],
+        ['people', 'This month', String(monthCount), nowMonthLabel()],
+        ['dashboard', 'Average rating', average ? average.toFixed(1) : '—', 'Out of 5'],
+        ['questions', 'Recommend us', total ? `${recommendPct}%` : '—', 'Yes answers'],
+      ] as const,
     [total, monthCount, average, recommendPct]
   );
 
   return (
     <AdminShell title="Dashboard">
-      <main className="admin-content">
-        <div className="admin-heading">
-          <div>
-            <h2>Good afternoon, Admin</h2>
-            <p>{loading ? 'Loading live feedback…' : 'Here is how patients feel about their care experience.'}</p>
-          </div>
+      <main className="mx-auto max-w-6xl space-y-6 p-4 md:p-8">
+        <div>
+          <h2 className="font-heading text-2xl font-extrabold tracking-tight">Good afternoon, Admin</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {loading ? 'Loading live feedback…' : 'Here is how patients feel about their care experience.'}
+          </p>
         </div>
-        <section className="metric-grid">
-          {metrics.map(([icon, label, value, sub]) => (
-            <article className="metric-card" key={label}>
-              <div className="metric-top">
-                <span className="metric-icon"><AdminIcon name={icon} /></span>
-              </div>
-              <div className="metric-label">{label}</div>
-              <div className="metric-value">{value}</div>
-              <div className="metric-sub">{sub}</div>
-            </article>
-          ))}
+
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {metrics.map(([icon, label, value, sub]) => {
+            const Icon = metricIcons[icon];
+            return (
+              <Card key={label} size="sm">
+                <CardContent className="space-y-3">
+                  <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <Icon className="size-4" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">{label}</p>
+                    {loading ? (
+                      <Skeleton className="mt-2 h-7 w-16" />
+                    ) : (
+                      <p className="font-heading text-2xl font-extrabold tracking-tight">{value}</p>
+                    )}
+                    <p className="mt-1 text-[11px] text-muted-foreground">{sub}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </section>
-        <section className="dashboard-grid">
-          <article className="admin-panel">
-            <div className="panel-header">
-              <h3>Overall care rating</h3>
-              <Link href="/admin/responses">View details</Link>
-            </div>
-            <div className="donut-wrap">
-              <div className="donut">
-                <div className="donut-center">
-                  <strong>{average || '—'}</strong>
-                  average rating
+
+        <section className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+          <Card>
+            <CardHeader className="flex-row items-center justify-between">
+              <div>
+                <CardTitle>Overall care rating</CardTitle>
+                <CardDescription>Distribution of care scores</CardDescription>
+              </div>
+              <Button variant="link" size="sm" asChild>
+                <Link href="/admin/responses">View details</Link>
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col items-center gap-6 sm:flex-row">
+                <div
+                  className="relative size-36 shrink-0 rounded-full"
+                  style={{
+                    background: `conic-gradient(${ratingData
+                      .map(([, , pct], i) => {
+                        const start = ratingData.slice(0, i).reduce((a, r) => a + r[2], 0);
+                        return `${chartColors[i]} ${start}% ${start + pct}%`;
+                      })
+                      .join(', ') || 'var(--muted) 0 100%'})`,
+                  }}
+                >
+                  <div className="absolute inset-7 flex flex-col items-center justify-center rounded-full bg-card text-center">
+                    <strong className="font-heading text-2xl font-extrabold">{average || '—'}</strong>
+                    <span className="text-[10px] text-muted-foreground">average rating</span>
+                  </div>
+                </div>
+                <div className="grid w-full flex-1 gap-2">
+                  {ratingData.map(([label, , pct], i) => (
+                    <div key={label} className="grid grid-cols-[8px_1fr_auto] items-center gap-2 text-xs">
+                      <span className="size-2 rounded-full" style={{ background: chartColors[i] }} />
+                      <span className="text-muted-foreground">{label}</span>
+                      <strong>{pct}%</strong>
+                    </div>
+                  ))}
                 </div>
               </div>
-              <div className="legend">
-                {ratingData.map(([label, , pct], i) => (
-                  <div className="legend-row" key={label}>
-                    <i style={{ background: ['#0a76df', '#52a7ee', '#94c9f3', '#d1e7f9', '#edf4fb'][i] }} />
-                    <span>{label}</span>
-                    <strong>{pct}%</strong>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </article>
-          <article className="admin-panel rating-panel">
-            <div className="panel-header">
-              <h3>Rating breakdown</h3>
-              <span>Based on {total} responses</span>
-            </div>
-            <div className="rating-bars">
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Rating breakdown</CardTitle>
+              <CardDescription>
+                Based on {total} response{total === 1 ? '' : 's'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
               {ratingData.map(([label, count, pct]) => (
-                <div className="rating-row" key={label}>
-                  <span>{label}</span>
-                  <div className="bar-track">
-                    <div className="bar-fill" style={{ width: `${pct}%` }} />
+                <div key={label} className="grid grid-cols-[100px_1fr_40px] items-center gap-3 text-xs">
+                  <span className="text-muted-foreground">{label}</span>
+                  <div className="h-2 overflow-hidden rounded-full bg-muted">
+                    <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
                   </div>
-                  <strong>{count}</strong>
+                  <strong className="text-right">{count}</strong>
                 </div>
               ))}
-            </div>
-          </article>
+              {!loading && !ratingData.length ? (
+                <Badge variant="secondary">No ratings yet</Badge>
+              ) : null}
+            </CardContent>
+          </Card>
         </section>
       </main>
     </AdminShell>

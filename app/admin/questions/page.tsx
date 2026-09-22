@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AdminIcon, AdminShell } from '../shared';
+import { GripVertical, Pencil, Plus, Trash2 } from 'lucide-react';
+import { AdminShell } from '../shared';
 import { createClient } from '@/lib/supabase/client';
 import {
   defaultOptionsForType,
@@ -9,6 +10,18 @@ import {
   typeLabel,
   type QuestionRow,
 } from '@/lib/feedback';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 type EditableQuestion = {
   id: string;
@@ -114,102 +127,127 @@ export default function Questions() {
 
   return (
     <AdminShell title="Questions">
-      <main className="admin-content">
-        <div className="admin-heading">
+      <main className="mx-auto max-w-6xl space-y-6 p-4 md:p-8">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h2>Feedback questions</h2>
-            <p>Change what patients are asked. Changes save to your Supabase database.</p>
+            <h2 className="font-heading text-2xl font-extrabold tracking-tight">Feedback questions</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Change what patients are asked. Changes save to your Supabase database.
+            </p>
           </div>
-          <div className="admin-toolbar">
-            <button
-              className="admin-button"
-              onClick={() =>
-                setEditing({
-                  id: crypto.randomUUID(),
-                  text: '',
-                  type: 'Multiple choice',
-                  active: true,
-                  isNew: true,
-                })
-              }
-            >
-              <AdminIcon name="plus" /> Add question
-            </button>
-          </div>
+          <Button
+            onClick={() =>
+              setEditing({
+                id: crypto.randomUUID(),
+                text: '',
+                type: 'Multiple choice',
+                active: true,
+                isNew: true,
+              })
+            }
+          >
+            <Plus data-icon="inline-start" />
+            Add question
+          </Button>
         </div>
 
-        {editing && (
-          <section className="admin-panel edit-panel">
-            <div className="panel-header">
-              <h3>{editing.isNew ? 'New question' : 'Edit question'}</h3>
-              <span>Live</span>
-            </div>
-            <div className="edit-grid">
-              <div className="field">
-                <label htmlFor="question-text">Question text</label>
-                <input
-                  id="question-text"
-                  value={editing.text}
-                  onChange={(e) => setEditing({ ...editing, text: e.target.value })}
-                  autoFocus
-                />
+        {editing ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>{editing.isNew ? 'New question' : 'Edit question'}</CardTitle>
+              <CardDescription>Live updates apply to the patient form</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-[1fr_220px]">
+                <div className="grid gap-2">
+                  <Label htmlFor="question-text">Question text</Label>
+                  <Input
+                    id="question-text"
+                    value={editing.text}
+                    onChange={(e) => setEditing({ ...editing, text: e.target.value })}
+                    autoFocus
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="question-type">Answer type</Label>
+                  <Select
+                    value={editing.type}
+                    onValueChange={(value) => setEditing({ ...editing, type: value ?? editing.type })}
+                  >
+                    <SelectTrigger id="question-type" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Rating scale">Rating scale</SelectItem>
+                      <SelectItem value="Multiple choice">Multiple choice</SelectItem>
+                      <SelectItem value="Long text · Optional">Long text · Optional</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="field">
-                <label htmlFor="question-type">Answer type</label>
-                <select
-                  id="question-type"
-                  value={editing.type}
-                  onChange={(e) => setEditing({ ...editing, type: e.target.value })}
-                >
-                  <option>Rating scale</option>
-                  <option>Multiple choice</option>
-                  <option>Long text · Optional</option>
-                </select>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setEditing(null)}>
+                  Cancel
+                </Button>
+                <Button onClick={save} disabled={!editing.text.trim()}>
+                  Save question
+                </Button>
               </div>
-            </div>
-            <div className="edit-actions">
-              <button className="admin-button secondary" onClick={() => setEditing(null)}>Cancel</button>
-              <button className="admin-button" onClick={save} disabled={!editing.text.trim()}>
-                Save question
-              </button>
-            </div>
-          </section>
-        )}
+            </CardContent>
+          </Card>
+        ) : null}
 
-        <section className="question-list">
-          {loading && <p>Loading questions…</p>}
+        <section className="grid gap-3">
+          {loading ? <p className="text-sm text-muted-foreground">Loading questions…</p> : null}
           {!loading &&
             items.map((question, index) => (
-              <article className="question-item" key={question.id}>
-                <div className="drag-handle" title="Drag to reorder">⠿</div>
-                <div className="question-copy">
-                  <div className="question-number">Question {index + 1}</div>
-                  <h3>{question.text}</h3>
-                  <div className="question-meta">
-                    <span className="type-pill">{question.type}</span>
-                    <span><i className="status-dot" /> {question.active ? 'Active' : 'Inactive'}</span>
+              <Card key={question.id} size="sm">
+                <CardContent className="flex items-start gap-3">
+                  <GripVertical className="mt-1 size-4 shrink-0 text-muted-foreground" aria-hidden />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-bold tracking-wide text-muted-foreground uppercase">
+                      Question {index + 1}
+                    </p>
+                    <h3 className="mt-1 text-sm font-semibold">{question.text}</h3>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <Badge variant="secondary">{question.type}</Badge>
+                      <Badge variant={question.active ? 'default' : 'outline'}>
+                        {question.active ? 'Active' : 'Inactive'}
+                      </Badge>
+                    </div>
                   </div>
-                </div>
-                <div className="question-actions">
-                  <button
-                    className="icon-button"
-                    aria-label={`Edit question ${index + 1}`}
-                    onClick={() => setEditing(question)}
-                  >
-                    <AdminIcon name="edit" />
-                  </button>
-                  <button
-                    className="icon-button danger"
-                    aria-label={`Delete question ${index + 1}`}
-                    onClick={() => remove(question.id)}
-                  >
-                    <AdminIcon name="trash" />
-                  </button>
-                </div>
-              </article>
+                  <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`Edit question ${index + 1}`}
+                      onClick={() => setEditing(question)}
+                    >
+                      <Pencil />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-destructive"
+                      aria-label={`Delete question ${index + 1}`}
+                      onClick={() => remove(question.id)}
+                    >
+                      <Trash2 />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
             ))}
         </section>
-        {toast && <div className="toast" role="status">{toast}</div>}
+
+        {toast ? (
+          <div
+            className="fixed right-6 bottom-6 z-20 rounded-lg bg-foreground px-4 py-3 text-xs text-background shadow-lg"
+            role="status"
+          >
+            {toast}
+          </div>
+        ) : null}
       </main>
     </AdminShell>
   );

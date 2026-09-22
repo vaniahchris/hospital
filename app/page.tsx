@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { QuestionRow } from '@/lib/feedback';
+import './feedback-form.css';
 
 function Icon({ name, className = '' }: { name: string; className?: string }) {
   return (

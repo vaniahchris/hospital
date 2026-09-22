@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AdminIcon, AdminShell } from '../shared';
+import { Download } from 'lucide-react';
+import { AdminShell } from '../shared';
 import { createClient } from '@/lib/supabase/client';
 import {
   formatResponseDate,
@@ -10,6 +11,18 @@ import {
   shortWait,
   type ResponseRow,
 } from '@/lib/feedback';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 type AnswerJoin = {
   value: string;
@@ -89,61 +102,83 @@ export default function Responses() {
 
   return (
     <AdminShell title="Responses">
-      <main className="admin-content">
-        <div className="admin-heading">
+      <main className="mx-auto max-w-6xl space-y-6 p-4 md:p-8">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h2>Patient responses</h2>
-            <p>Review feedback and find areas where the care experience can improve.</p>
+            <h2 className="font-heading text-2xl font-extrabold tracking-tight">Patient responses</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Review feedback and find areas where the care experience can improve.
+            </p>
           </div>
-          <div className="admin-toolbar">
-            <button className="admin-button secondary" onClick={exportCsv} disabled={!responses.length}>
-              <AdminIcon name="export" /> Export CSV
-            </button>
-          </div>
+          <Button variant="outline" onClick={exportCsv} disabled={!responses.length}>
+            <Download data-icon="inline-start" />
+            Export CSV
+          </Button>
         </div>
-        <section className="admin-panel">
-          <div className="panel-header">
-            <h3>Recent responses</h3>
-            <span>
-              {loading ? 'Loading…' : `Showing ${responses.length} response${responses.length === 1 ? '' : 's'}`}
-            </span>
-          </div>
-          {error && <p role="alert">{error}</p>}
-          <div className="table-wrap">
-            <table className="response-table">
-              <thead>
-                <tr>
-                  <th>Response</th>
-                  <th>Date</th>
-                  <th>Care</th>
-                  <th>Staff</th>
-                  <th>Wait time</th>
-                  <th>Recommend</th>
-                  <th>Score</th>
-                  <th>Comment</th>
-                </tr>
-              </thead>
-              <tbody>
+
+        <Card>
+          <CardHeader className="flex-row items-center justify-between">
+            <div>
+              <CardTitle>Recent responses</CardTitle>
+              <CardDescription>
+                {loading
+                  ? 'Loading…'
+                  : `Showing ${responses.length} response${responses.length === 1 ? '' : 's'}`}
+              </CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {error ? (
+              <Alert variant="destructive" className="mb-4">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            ) : null}
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Response</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Care</TableHead>
+                  <TableHead>Staff</TableHead>
+                  <TableHead>Wait time</TableHead>
+                  <TableHead>Recommend</TableHead>
+                  <TableHead>Score</TableHead>
+                  <TableHead>Comment</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {responses.map((row) => (
-                  <tr key={row.id}>
-                    <td><strong>{row.id}</strong></td>
-                    <td>{row.date}</td>
-                    <td>{row.care}</td>
-                    <td>{row.staff}</td>
-                    <td>{row.wait}</td>
-                    <td>{row.recommend}</td>
-                    <td>
-                      <span className={`score-pill ${row.score >= 4 ? 'score-high' : 'score-mid'}`}>
+                  <TableRow key={row.id}>
+                    <TableCell className="font-semibold">{row.id}</TableCell>
+                    <TableCell>{row.date}</TableCell>
+                    <TableCell>{row.care}</TableCell>
+                    <TableCell>{row.staff}</TableCell>
+                    <TableCell>{row.wait}</TableCell>
+                    <TableCell>{row.recommend}</TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="secondary"
+                        className={
+                          row.score >= 4
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : 'bg-amber-50 text-amber-800'
+                        }
+                      >
                         {row.score}
-                      </span>
-                    </td>
-                    <td className="comment-cell" title={row.comment}>{row.comment}</td>
-                  </tr>
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="max-w-[220px] truncate" title={row.comment}>
+                      {row.comment}
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
+              </TableBody>
+            </Table>
+            {!loading && !responses.length ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">No responses yet.</p>
+            ) : null}
+          </CardContent>
+        </Card>
       </main>
     </AdminShell>
   );

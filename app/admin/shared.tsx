@@ -3,31 +3,34 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import {
+  LayoutDashboard,
+  ListChecks,
+  MessageSquareText,
+  ExternalLink,
+  LogOut,
+  Menu,
+} from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { cn } from '@/lib/utils';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
 
-export function AdminIcon({ name }: { name: string }) {
-  const paths: Record<string, React.ReactNode> = {
-    dashboard: <><rect x="3" y="3" width="7" height="7" rx="2" /><rect x="14" y="3" width="7" height="7" rx="2" /><rect x="3" y="14" width="7" height="7" rx="2" /><rect x="14" y="14" width="7" height="7" rx="2" /></>,
-    questions: <><path d="M6 3h12a2 2 0 0 1 2 2v16l-5-3-5 3-6-3V5a2 2 0 0 1 2-2Z" /><path d="M8 8h8M8 12h6" /></>,
-    responses: <><path d="M4 19V9m5 10V5m5 14v-7m5 7V3" /></>,
-    people: <><circle cx="9" cy="8" r="4" /><path d="M2 21c0-4 3-7 7-7s7 3 7 7m0-10c3 0 6 2 6 6" /></>,
-    export: <><path d="M12 3v12m-4-4 4 4 4-4" /><path d="M5 20h14" /></>,
-    edit: <><path d="m4 20 4-1 11-11-3-3L5 16l-1 4Z" /></>,
-    trash: <><path d="M4 7h16M9 7V4h6v3m3 0-1 14H7L6 7m4 4v6m4-6v6" /></>,
-    plus: <><path d="M12 5v14M5 12h14" /></>,
-  };
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      {paths[name]}
-    </svg>
-  );
-}
+const links = [
+  { href: '/admin', label: 'Overview', icon: LayoutDashboard },
+  { href: '/admin/questions', label: 'Questions', icon: ListChecks },
+  { href: '/admin/responses', label: 'Responses', icon: MessageSquareText },
+] as const;
 
 export function AdminShell({ children, title }: { children: React.ReactNode; title: string }) {
   const path = usePathname();
   const router = useRouter();
   const [ready, setReady] = useState(false);
   const [email, setEmail] = useState('Administrator');
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -55,11 +58,6 @@ export function AdminShell({ children, title }: { children: React.ReactNode; tit
     };
   }, [router]);
 
-  const links = [
-    { href: '/admin', label: 'Overview', icon: 'dashboard' },
-    { href: '/admin/questions', label: 'Questions', icon: 'questions' },
-    { href: '/admin/responses', label: 'Responses', icon: 'responses' },
-  ];
   const active = (href: string) => (href === '/admin' ? path === href : path.startsWith(href));
 
   async function logout() {
@@ -68,46 +66,113 @@ export function AdminShell({ children, title }: { children: React.ReactNode; tit
     router.replace('/admin/login');
   }
 
-  if (!ready) return <div className="admin-loading"><span /></div>;
+  if (!ready) {
+    return (
+      <div className="flex min-h-svh items-center justify-center bg-muted/40">
+        <Skeleton className="size-8 rounded-full" />
+      </div>
+    );
+  }
 
   return (
-    <div className="admin-root">
-      <aside className="admin-sidebar">
-        <Link href="/" className="admin-logo">
-          <img className="admin-logo-image" src="/value-family-hospital-logo.png" alt="Value Family Hospital logo" />
-          <span><strong>Value Family Hospital</strong><small>FEEDBACK ADMIN</small></span>
-        </Link>
-        <nav className="admin-nav">
-          {links.map((link) => (
-            <Link className={active(link.href) ? 'active' : ''} href={link.href} key={link.href}>
-              <AdminIcon name={link.icon} />
-              {link.label}
-            </Link>
-          ))}
+    <div className="min-h-svh bg-muted/40 md:grid md:grid-cols-[240px_1fr]">
+      <aside className="border-b border-sidebar-border bg-sidebar md:sticky md:top-0 md:flex md:h-svh md:flex-col md:border-b-0 md:border-r">
+        <div className="flex items-center justify-between gap-3 px-4 py-4 md:px-5">
+          <Link href="/" className="flex items-center gap-3 text-primary">
+            <img
+              src="/value-family-hospital-logo.png"
+              alt="Value Family Hospital logo"
+              className="size-9 rounded-full object-cover"
+            />
+            <span className="min-w-0">
+              <strong className="block font-heading text-sm font-extrabold tracking-tight text-foreground">
+                Value Family Hospital
+              </strong>
+              <small className="text-[10px] tracking-wide text-muted-foreground uppercase">
+                Feedback Admin
+              </small>
+            </span>
+          </Link>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            className="md:hidden"
+            onClick={() => setMobileOpen((v) => !v)}
+            aria-label="Toggle navigation"
+          >
+            <Menu />
+          </Button>
+        </div>
+
+        <nav className={cn('flex flex-col gap-1 px-3 pb-4', mobileOpen ? 'flex' : 'hidden md:flex')}>
+          {links.map((link) => {
+            const Icon = link.icon;
+            const isActive = active(link.href);
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                onClick={() => setMobileOpen(false)}
+                className={cn(
+                  'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                  isActive
+                    ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                    : 'text-sidebar-foreground hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground'
+                )}
+              >
+                <Icon className="size-4" />
+                {link.label}
+              </Link>
+            );
+          })}
+          <Button
+            type="button"
+            variant="ghost"
+            className="mt-1 justify-start text-destructive md:hidden"
+            onClick={logout}
+          >
+            <LogOut className="size-4" />
+            Sign out
+          </Button>
         </nav>
-        <nav className="mobile-menu">
-          {links.map((link) => (
-            <Link className={active(link.href) ? 'active' : ''} href={link.href} key={link.href}>
-              {link.label}
+
+        <div className="mt-auto hidden flex-col gap-3 p-4 md:flex">
+          <Button variant="outline" className="w-full justify-between" asChild>
+            <Link href="/">
+              View feedback form
+              <ExternalLink className="size-3.5" />
             </Link>
-          ))}
-          <button className="mobile-signout" onClick={logout}>Sign out</button>
-        </nav>
-        <div className="admin-side-bottom">
-          <Link href="/" className="admin-preview-link">View feedback form ↗</Link>
-          <div className="admin-profile">
-            <span className="admin-avatar">{email.slice(0, 1).toUpperCase()}</span>
-            <span><strong>Administrator</strong><small>{email}</small></span>
-            <button className="logout-button" onClick={logout} title="Sign out" aria-label="Sign out">↪</button>
+          </Button>
+          <Separator />
+          <div className="flex items-center gap-3">
+            <Avatar size="sm">
+              <AvatarFallback className="bg-primary/10 text-primary">
+                {email.slice(0, 1).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-semibold">Administrator</p>
+              <p className="truncate text-[10px] text-muted-foreground">{email}</p>
+            </div>
+            <Button type="button" variant="ghost" size="icon-sm" onClick={logout} aria-label="Sign out">
+              <LogOut className="size-3.5" />
+            </Button>
           </div>
         </div>
       </aside>
-      <div className="admin-main">
-        <header className="admin-topbar">
-          <h1>{title}</h1>
-          <div className="topbar-actions">
-            <span className="admin-live"><i /> System live</span>
-            <button className="topbar-logout" onClick={logout}>Sign out</button>
+
+      <div className="min-w-0">
+        <header className="sticky top-0 z-10 hidden h-16 items-center justify-between border-b bg-background px-8 md:flex">
+          <h1 className="font-heading text-lg font-bold tracking-tight">{title}</h1>
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary" className="gap-1.5 bg-emerald-50 text-emerald-700">
+              <span className="size-1.5 rounded-full bg-emerald-500" />
+              System live
+            </Badge>
+            <Button type="button" variant="outline" size="sm" onClick={logout}>
+              Sign out
+            </Button>
           </div>
         </header>
         {children}
