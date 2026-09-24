@@ -11,7 +11,7 @@ import {
   scoreForCare,
   shortRecommend,
   shortWait,
-  type ResponseRow,
+  type QuestionRow,
 } from '@/lib/feedback';
 import {
   AlertDialog,
@@ -47,7 +47,13 @@ import {
 
 type AnswerJoin = {
   value: string;
-  question: { sort_order: number; question_type: string } | null;
+  question_id: string;
+  question: {
+    id: string;
+    sort_order: number;
+    question_type: string;
+    prompt: string;
+  } | null;
 };
 
 type SubmissionJoin = {
@@ -57,36 +63,46 @@ type SubmissionJoin = {
   answers: AnswerJoin[];
 };
 
-type AdminResponse = ResponseRow & {
+type AdminResponse = {
   submissionId: string;
   createdAt: string;
+  id: string;
+  date: string;
+  comment: string;
+  answersByQuestionId: Record<string, string>;
 };
 
 const ALL = 'all';
 
-function mapSubmission(row: SubmissionJoin, index: number, total: number): AdminResponse {
-  const byOrder = new Map<number, string>();
-  for (const answer of row.answers ?? []) {
-    const order = answer.question?.sort_order;
-    if (order) byOrder.set(order, answer.value);
-  }
+function displayAnswer(value: string) {
+  const recommend = shortRecommend(value);
+  if (recommend !== value) return recommend;
+  const wait = shortWait(value);
+  if (wait !== value) return wait;
+  return value;
+}
 
-  const care = byOrder.get(1) ?? '—';
-  const staff = byOrder.get(2) ?? '—';
-  const wait = byOrder.get(3) ?? '—';
-  const recommend = byOrder.get(4) ?? '—';
+function shortPrompt(prompt: string) {
+  const cleaned = prompt.trim();
+  if (cleaned.length <= 32) return cleaned;
+  return `${cleaned.slice(0, 29)}…`;
+}
+
+function mapSubmission(row: SubmissionJoin, index: number, total: number): AdminResponse {
+  const answersByQuestionId: Record<string, string> = {};
+  for (const answer of row.answers ?? []) {
+    const questionId = answer.question_id || answer.question?.id;
+    if (!questionId || !answer.value) continue;
+    answersByQuestionId[questionId] = displayAnswer(answer.value);
+  }
 
   return {
     submissionId: row.id,
     createdAt: row.created_at,
     id: `FB-${1000 + (total - index)}`,
     date: formatResponseDate(row.created_at),
-    care,
-    staff,
-    wait: shortWait(wait),
-    recommend: shortRecommend(recommend),
-    score: Number(scoreForCare(care).toFixed(1)) || 0,
     comment: row.comment ?? '',
+    answersByQuestionId,
   };
 }
 
@@ -116,7 +132,14 @@ function formatRangeLabel(startDate: string, endDate: string) {
   return 'All dates';
 }
 
+function scoreForResponse(row: AdminResponse, questions: QuestionRow[]) {
+  const rating = questions.find((q) => q.question_type === 'rating');
+  if (!rating) return 0;
+  return scoreForCare(row.answersByQuestionId[rating.id]);
+}
+
 export default function Responses() {
+  const [questions, setQuestions] = useState<QuestionRow[]>([]);
   const [responses, setResponses] = useState<AdminResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -125,28 +148,53 @@ export default function Responses() {
 
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [care, setCare] = useState(ALL);
-  const [staff, setStaff] = useState(ALL);
-  const [wait, setWait] = useState(ALL);
-  const [recommend, setRecommend] = useState(ALL);
+  const [questionFilters, setQuestionFilters] = useState<Record<string, string>>({});
+
+  const filterQuestions = useMemo(
+    () => questions.filter((q) => q.question_type === 'rating' || q.question_type === 'choice'),
+    [questions]
+  );
 
   async function load() {
     setLoading(true);
     setError('');
     const supabase = createClient();
-    const { data, error: loadError } = await supabase
-      .from('submissions')
-      .select('id, comment, created_at, answers(value, question:questions(sort_order, question_type))')
-      .order('created_at', { ascending: false });
 
-    if (loadError) {
-      setError(loadError.message);
+    const [questionsResult, submissionsResult] = await Promise.all([
+      supabase.from('questions').select('*').eq('is_active', true).order('sort_order', { ascending: true }),
+      supabase
+        .from('submissions')
+        .select(
+          'id, comment, created_at, answers(value, question_id, question:questions(id, sort_order, question_type, prompt))'
+        )
+        .order('created_at', { ascending: false }),
+    ]);
+
+    if (questionsResult.error) {
+      setError(questionsResult.error.message);
+      setLoading(false);
+      return;
+    }
+    if (submissionsResult.error) {
+      setError(submissionsResult.error.message);
       setLoading(false);
       return;
     }
 
-    const rows = (data as unknown as SubmissionJoin[]) ?? [];
+    const nextQuestions = (questionsResult.data as QuestionRow[]) ?? [];
+    const rows = (submissionsResult.data as unknown as SubmissionJoin[]) ?? [];
+
+    setQuestions(nextQuestions);
     setResponses(rows.map((row, index) => mapSubmission(row, index, rows.length)));
+    setQuestionFilters((prev) => {
+      const next: Record<string, string> = {};
+      for (const question of nextQuestions) {
+        if (question.question_type === 'rating' || question.question_type === 'choice') {
+          next[question.id] = prev[question.id] ?? ALL;
+        }
+      }
+      return next;
+    });
     setLoading(false);
   }
 
@@ -154,44 +202,56 @@ export default function Responses() {
     load();
   }, []);
 
-  const careOptions = useMemo(() => uniqueSorted(responses.map((r) => r.care)), [responses]);
-  const staffOptions = useMemo(() => uniqueSorted(responses.map((r) => r.staff)), [responses]);
-  const waitOptions = useMemo(() => uniqueSorted(responses.map((r) => r.wait)), [responses]);
-  const recommendOptions = useMemo(
-    () => uniqueSorted(responses.map((r) => r.recommend)),
-    [responses]
-  );
-
   const filtered = useMemo(
     () =>
-      responses.filter(
-        (row) =>
-          matchesDateRange(row.createdAt, startDate, endDate) &&
-          (care === ALL || row.care === care) &&
-          (staff === ALL || row.staff === staff) &&
-          (wait === ALL || row.wait === wait) &&
-          (recommend === ALL || row.recommend === recommend)
-      ),
-    [responses, startDate, endDate, care, staff, wait, recommend]
+      responses.filter((row) => {
+        if (!matchesDateRange(row.createdAt, startDate, endDate)) return false;
+        return filterQuestions.every((question) => {
+          const selected = questionFilters[question.id] ?? ALL;
+          if (selected === ALL) return true;
+          return row.answersByQuestionId[question.id] === selected;
+        });
+      }),
+    [responses, startDate, endDate, filterQuestions, questionFilters]
   );
 
   const filtersActive =
-    !!startDate || !!endDate || care !== ALL || staff !== ALL || wait !== ALL || recommend !== ALL;
+    !!startDate ||
+    !!endDate ||
+    Object.values(questionFilters).some((value) => value !== ALL);
 
   function clearFilters() {
     setStartDate('');
     setEndDate('');
-    setCare(ALL);
-    setStaff(ALL);
-    setWait(ALL);
-    setRecommend(ALL);
+    setQuestionFilters((prev) => {
+      const next: Record<string, string> = {};
+      for (const id of Object.keys(prev)) next[id] = ALL;
+      return next;
+    });
+  }
+
+  function optionsForQuestion(question: QuestionRow) {
+    const fromConfig = (question.options ?? []).map((option) => displayAnswer(option.label));
+    const fromAnswers = responses.map((row) => row.answersByQuestionId[question.id] ?? '');
+    return uniqueSorted([...fromConfig, ...fromAnswers]);
   }
 
   function exportCsv() {
-    const header = 'ID,Date,Care,Staff,Wait,Recommend,Score,Comment';
-    const rows = filtered.map((r) =>
-      [r.id, r.date, r.care, r.staff, r.wait, r.recommend, r.score, `"${r.comment.replaceAll('"', '""')}"`].join(',')
-    );
+    const questionHeaders = filterQuestions.map((q) => shortPrompt(q.prompt));
+    const header = ['ID', 'Date', ...questionHeaders, 'Score', 'Comment'].join(',');
+    const rows = filtered.map((r) => {
+      const answers = filterQuestions.map((q) => {
+        const value = r.answersByQuestionId[q.id] ?? '';
+        return `"${value.replaceAll('"', '""')}"`;
+      });
+      return [
+        r.id,
+        r.date,
+        ...answers,
+        String(scoreForResponse(r, filterQuestions) || ''),
+        `"${r.comment.replaceAll('"', '""')}"`,
+      ].join(',');
+    });
     const blob = new Blob([[header, ...rows].join('\n')], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -204,6 +264,7 @@ export default function Responses() {
   function exportPdf() {
     const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
     const generatedAt = new Date().toLocaleString();
+    const questionHeaders = filterQuestions.map((q) => shortPrompt(q.prompt));
 
     doc.setFontSize(16);
     doc.text('Value Family Hospital — Patient Responses', 40, 36);
@@ -215,22 +276,16 @@ export default function Responses() {
 
     autoTable(doc, {
       startY: 84,
-      head: [['Response', 'Date', 'Care', 'Staff', 'Wait', 'Recommend', 'Score', 'Comment']],
+      head: [['Response', 'Date', ...questionHeaders, 'Score', 'Comment']],
       body: filtered.map((r) => [
         r.id,
         r.date,
-        r.care,
-        r.staff,
-        r.wait,
-        r.recommend,
-        String(r.score),
+        ...filterQuestions.map((q) => r.answersByQuestionId[q.id] ?? '—'),
+        String(scoreForResponse(r, filterQuestions) || '—'),
         r.comment || '—',
       ]),
       styles: { fontSize: 8, cellPadding: 4, overflow: 'linebreak' },
       headStyles: { fillColor: [11, 114, 209], textColor: 255 },
-      columnStyles: {
-        7: { cellWidth: 160 },
-      },
       margin: { left: 40, right: 40 },
     });
 
@@ -295,25 +350,22 @@ export default function Responses() {
         </div>
 
         <Card>
-          <CardHeader className="gap-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <CardTitle>Recent responses</CardTitle>
-                <CardDescription>
-                  {loading
-                    ? 'Loading…'
-                    : `Showing ${filtered.length} of ${responses.length} response${responses.length === 1 ? '' : 's'}`}
-                </CardDescription>
-              </div>
-              {filtersActive ? (
-                <Button variant="ghost" size="sm" onClick={clearFilters}>
-                  <X data-icon="inline-start" />
-                  Clear filters
-                </Button>
-              ) : null}
+          <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
+            <div>
+              <CardTitle>Filters</CardTitle>
+              <CardDescription>
+                Date range and active questions. Filters update when questions change.
+              </CardDescription>
             </div>
-
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+            {filtersActive ? (
+              <Button variant="ghost" size="sm" onClick={clearFilters}>
+                <X data-icon="inline-start" />
+                Clear filters
+              </Button>
+            ) : null}
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               <div className="grid gap-1.5">
                 <Label htmlFor="filter-start">Start date</Label>
                 <Input
@@ -334,37 +386,31 @@ export default function Responses() {
                   onChange={(e) => setEndDate(e.target.value)}
                 />
               </div>
-              <FilterSelect
-                id="filter-care"
-                label="Care"
-                value={care}
-                onChange={setCare}
-                options={careOptions}
-              />
-              <FilterSelect
-                id="filter-staff"
-                label="Staff"
-                value={staff}
-                onChange={setStaff}
-                options={staffOptions}
-              />
-              <FilterSelect
-                id="filter-wait"
-                label="Wait time"
-                value={wait}
-                onChange={setWait}
-                options={waitOptions}
-              />
-              <FilterSelect
-                id="filter-recommend"
-                label="Recommend"
-                value={recommend}
-                onChange={setRecommend}
-                options={recommendOptions}
-              />
+              {filterQuestions.map((question) => (
+                <FilterSelect
+                  key={question.id}
+                  id={`filter-${question.id}`}
+                  label={shortPrompt(question.prompt)}
+                  value={questionFilters[question.id] ?? ALL}
+                  onChange={(value) =>
+                    setQuestionFilters((prev) => ({ ...prev, [question.id]: value }))
+                  }
+                  options={optionsForQuestion(question)}
+                />
+              ))}
             </div>
-          </CardHeader>
+          </CardContent>
+        </Card>
 
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent responses</CardTitle>
+            <CardDescription>
+              {loading
+                ? 'Loading…'
+                : `Showing ${filtered.length} of ${responses.length} response${responses.length === 1 ? '' : 's'}`}
+            </CardDescription>
+          </CardHeader>
           <CardContent>
             {error ? (
               <Alert variant="destructive" className="mb-4">
@@ -376,53 +422,62 @@ export default function Responses() {
                 <TableRow>
                   <TableHead>Response</TableHead>
                   <TableHead>Date</TableHead>
-                  <TableHead>Care</TableHead>
-                  <TableHead>Staff</TableHead>
-                  <TableHead>Wait time</TableHead>
-                  <TableHead>Recommend</TableHead>
+                  {filterQuestions.map((question) => (
+                    <TableHead key={question.id} title={question.prompt}>
+                      {shortPrompt(question.prompt)}
+                    </TableHead>
+                  ))}
                   <TableHead>Score</TableHead>
                   <TableHead>Comment</TableHead>
                   <TableHead className="w-12 text-right"> </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map((row) => (
-                  <TableRow key={row.submissionId}>
-                    <TableCell className="font-semibold">{row.id}</TableCell>
-                    <TableCell>{row.date}</TableCell>
-                    <TableCell>{row.care}</TableCell>
-                    <TableCell>{row.staff}</TableCell>
-                    <TableCell>{row.wait}</TableCell>
-                    <TableCell>{row.recommend}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="secondary"
-                        className={
-                          row.score >= 4
-                            ? 'bg-emerald-50 text-emerald-700'
-                            : 'bg-amber-50 text-amber-800'
-                        }
-                      >
-                        {row.score}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="max-w-[220px] truncate" title={row.comment}>
-                      {row.comment}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="text-destructive"
-                        aria-label={`Delete ${row.id}`}
-                        disabled={deletingId === row.submissionId}
-                        onClick={() => setPendingDelete(row)}
-                      >
-                        <Trash2 />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {filtered.map((row) => {
+                  const score = scoreForResponse(row, filterQuestions);
+                  return (
+                    <TableRow key={row.submissionId}>
+                      <TableCell className="font-semibold">{row.id}</TableCell>
+                      <TableCell>{row.date}</TableCell>
+                      {filterQuestions.map((question) => (
+                        <TableCell key={question.id}>
+                          {row.answersByQuestionId[question.id] ?? '—'}
+                        </TableCell>
+                      ))}
+                      <TableCell>
+                        {score ? (
+                          <Badge
+                            variant="secondary"
+                            className={
+                              score >= 4
+                                ? 'bg-emerald-50 text-emerald-700'
+                                : 'bg-amber-50 text-amber-800'
+                            }
+                          >
+                            {score}
+                          </Badge>
+                        ) : (
+                          '—'
+                        )}
+                      </TableCell>
+                      <TableCell className="max-w-[220px] truncate" title={row.comment}>
+                        {row.comment}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          className="text-destructive"
+                          aria-label={`Delete ${row.id}`}
+                          disabled={deletingId === row.submissionId}
+                          onClick={() => setPendingDelete(row)}
+                        >
+                          <Trash2 />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
             {!loading && !filtered.length ? (
@@ -483,7 +538,9 @@ function FilterSelect({
 }) {
   return (
     <div className="grid gap-1.5">
-      <Label htmlFor={id}>{label}</Label>
+      <Label htmlFor={id} title={label}>
+        {label}
+      </Label>
       <Select value={value} onValueChange={(next) => onChange(next ?? ALL)}>
         <SelectTrigger id={id} className="w-full">
           <SelectValue />
