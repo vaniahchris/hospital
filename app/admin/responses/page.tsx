@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Download, Trash2, X } from 'lucide-react';
+import { Download, FileText, Trash2, X } from 'lucide-react';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { AdminShell } from '../shared';
 import { createClient } from '@/lib/supabase/client';
 import {
@@ -60,8 +62,6 @@ type AdminResponse = ResponseRow & {
   createdAt: string;
 };
 
-type DayFilter = 'all' | 'today' | 'yesterday' | '7d' | '30d' | 'custom';
-
 const ALL = 'all';
 
 function mapSubmission(row: SubmissionJoin, index: number, total: number): AdminResponse {
@@ -98,35 +98,22 @@ function localDateKey(iso: string) {
   return `${y}-${m}-${day}`;
 }
 
-function matchesDay(createdAt: string, day: DayFilter, customDate: string) {
-  if (day === 'all') return true;
-
-  const created = new Date(createdAt);
-  const now = new Date();
-  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-  if (day === 'today') return created >= startToday;
-  if (day === 'yesterday') {
-    const startYesterday = new Date(startToday);
-    startYesterday.setDate(startYesterday.getDate() - 1);
-    return created >= startYesterday && created < startToday;
-  }
-  if (day === '7d') {
-    const from = new Date(startToday);
-    from.setDate(from.getDate() - 6);
-    return created >= from;
-  }
-  if (day === '30d') {
-    const from = new Date(startToday);
-    from.setDate(from.getDate() - 29);
-    return created >= from;
-  }
-  if (day === 'custom' && customDate) return localDateKey(createdAt) === customDate;
+function matchesDateRange(createdAt: string, startDate: string, endDate: string) {
+  const key = localDateKey(createdAt);
+  if (startDate && key < startDate) return false;
+  if (endDate && key > endDate) return false;
   return true;
 }
 
 function uniqueSorted(values: string[]) {
   return [...new Set(values.filter((v) => v && v !== '—'))].sort((a, b) => a.localeCompare(b));
+}
+
+function formatRangeLabel(startDate: string, endDate: string) {
+  if (startDate && endDate) return `${startDate} to ${endDate}`;
+  if (startDate) return `From ${startDate}`;
+  if (endDate) return `Through ${endDate}`;
+  return 'All dates';
 }
 
 export default function Responses() {
@@ -136,8 +123,8 @@ export default function Responses() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<AdminResponse | null>(null);
 
-  const [day, setDay] = useState<DayFilter>('all');
-  const [customDate, setCustomDate] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [care, setCare] = useState(ALL);
   const [staff, setStaff] = useState(ALL);
   const [wait, setWait] = useState(ALL);
@@ -179,21 +166,21 @@ export default function Responses() {
     () =>
       responses.filter(
         (row) =>
-          matchesDay(row.createdAt, day, customDate) &&
+          matchesDateRange(row.createdAt, startDate, endDate) &&
           (care === ALL || row.care === care) &&
           (staff === ALL || row.staff === staff) &&
           (wait === ALL || row.wait === wait) &&
           (recommend === ALL || row.recommend === recommend)
       ),
-    [responses, day, customDate, care, staff, wait, recommend]
+    [responses, startDate, endDate, care, staff, wait, recommend]
   );
 
   const filtersActive =
-    day !== 'all' || care !== ALL || staff !== ALL || wait !== ALL || recommend !== ALL;
+    !!startDate || !!endDate || care !== ALL || staff !== ALL || wait !== ALL || recommend !== ALL;
 
   function clearFilters() {
-    setDay('all');
-    setCustomDate('');
+    setStartDate('');
+    setEndDate('');
     setCare(ALL);
     setStaff(ALL);
     setWait(ALL);
@@ -212,6 +199,42 @@ export default function Responses() {
     a.download = 'feedback-responses.csv';
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  function exportPdf() {
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+    const generatedAt = new Date().toLocaleString();
+
+    doc.setFontSize(16);
+    doc.text('Value Family Hospital — Patient Responses', 40, 36);
+    doc.setFontSize(10);
+    doc.setTextColor(90);
+    doc.text(`Date range: ${formatRangeLabel(startDate, endDate)}`, 40, 54);
+    doc.text(`Exported: ${generatedAt} · ${filtered.length} response(s)`, 40, 68);
+    doc.setTextColor(0);
+
+    autoTable(doc, {
+      startY: 84,
+      head: [['Response', 'Date', 'Care', 'Staff', 'Wait', 'Recommend', 'Score', 'Comment']],
+      body: filtered.map((r) => [
+        r.id,
+        r.date,
+        r.care,
+        r.staff,
+        r.wait,
+        r.recommend,
+        String(r.score),
+        r.comment || '—',
+      ]),
+      styles: { fontSize: 8, cellPadding: 4, overflow: 'linebreak' },
+      headStyles: { fillColor: [11, 114, 209], textColor: 255 },
+      columnStyles: {
+        7: { cellWidth: 160 },
+      },
+      margin: { left: 40, right: 40 },
+    });
+
+    doc.save('feedback-responses.pdf');
   }
 
   async function confirmDelete() {
@@ -259,10 +282,16 @@ export default function Responses() {
               Review feedback and find areas where the care experience can improve.
             </p>
           </div>
-          <Button variant="outline" onClick={exportCsv} disabled={!filtered.length}>
-            <Download data-icon="inline-start" />
-            Export CSV
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={exportCsv} disabled={!filtered.length}>
+              <Download data-icon="inline-start" />
+              Export CSV
+            </Button>
+            <Button variant="outline" onClick={exportPdf} disabled={!filtered.length}>
+              <FileText data-icon="inline-start" />
+              Export PDF
+            </Button>
+          </div>
         </div>
 
         <Card>
@@ -286,37 +315,25 @@ export default function Responses() {
 
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
               <div className="grid gap-1.5">
-                <Label htmlFor="filter-day">Day</Label>
-                <Select
-                  value={day}
-                  onValueChange={(value) => setDay((value as DayFilter) ?? 'all')}
-                >
-                  <SelectTrigger id="filter-day" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All days</SelectItem>
-                    <SelectItem value="today">Today</SelectItem>
-                    <SelectItem value="yesterday">Yesterday</SelectItem>
-                    <SelectItem value="7d">Last 7 days</SelectItem>
-                    <SelectItem value="30d">Last 30 days</SelectItem>
-                    <SelectItem value="custom">Specific date</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="filter-start">Start date</Label>
+                <Input
+                  id="filter-start"
+                  type="date"
+                  value={startDate}
+                  max={endDate || undefined}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
               </div>
-
-              {day === 'custom' ? (
-                <div className="grid gap-1.5">
-                  <Label htmlFor="filter-custom-date">Date</Label>
-                  <Input
-                    id="filter-custom-date"
-                    type="date"
-                    value={customDate}
-                    onChange={(e) => setCustomDate(e.target.value)}
-                  />
-                </div>
-              ) : null}
-
+              <div className="grid gap-1.5">
+                <Label htmlFor="filter-end">End date</Label>
+                <Input
+                  id="filter-end"
+                  type="date"
+                  value={endDate}
+                  min={startDate || undefined}
+                  onChange={(e) => setEndDate(e.target.value)}
+                />
+              </div>
               <FilterSelect
                 id="filter-care"
                 label="Care"
