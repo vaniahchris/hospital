@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { QuestionRow } from '@/lib/feedback';
+import { Skeleton } from '@/components/ui/skeleton';
 import './feedback-form.css';
 
 function Icon({ name, className = '' }: { name: string; className?: string }) {
@@ -176,10 +177,36 @@ export default function Home() {
     return (
       <main className="page">
         <div className="app-shell">
-          <section className="feedback-card welcome" aria-label="Loading feedback">
+          <div className="desktop-brand">
             <Brand />
-            <p>Loading questions…</p>
+            <span className="care-label"><span /> Listening. Caring. Improving.</span>
+          </div>
+          <section className="feedback-card" aria-busy="true" aria-label="Loading feedback">
+            <div className="step-header">
+              <Skeleton className="h-4 w-24 rounded-full bg-[#e8f2ff]" />
+              <Skeleton className="h-4 w-14 rounded-full bg-[#e8f2ff]" />
+            </div>
+            <div className="progress" aria-hidden="true">
+              {Array.from({ length: 5 }, (_, i) => (
+                <Skeleton key={i} className="h-[9px] flex-1 rounded-full bg-[#e8f2ff]" />
+              ))}
+            </div>
+            <div className="question-skeleton">
+              <Skeleton className="mb-3 h-7 w-[92%] rounded-lg bg-[#e8f2ff]" />
+              <Skeleton className="mb-8 h-7 w-[70%] rounded-lg bg-[#e8f2ff]" />
+            </div>
+            <div className="option-skeleton-list" aria-hidden="true">
+              {Array.from({ length: 5 }, (_, i) => (
+                <div className="option-skeleton" key={i}>
+                  <Skeleton className="size-8 shrink-0 rounded-full bg-[#dce9fa]" />
+                  <Skeleton className="h-4 flex-1 rounded-full bg-[#dce9fa]" />
+                </div>
+              ))}
+            </div>
+            <Skeleton className="mt-9 h-[52px] w-full rounded-full bg-[#e8f2ff]" />
+            <Skeleton className="mx-auto mt-3 h-3 w-40 rounded-full bg-[#e8f2ff]" />
           </section>
+          <footer>Value Family Hospital <span>•</span> Service with a difference</footer>
         </div>
       </main>
     );
