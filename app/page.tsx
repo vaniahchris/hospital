@@ -195,28 +195,28 @@ export default function Home() {
           </div>
           <section className="feedback-card" aria-busy="true" aria-label="Loading feedback">
             <div className="step-header">
-              <Skeleton className="h-4 w-24 rounded-full bg-[#e8f2ff]" />
-              <Skeleton className="h-4 w-14 rounded-full bg-[#e8f2ff]" />
+              <Skeleton className="h-4 w-24 rounded-full bg-[#e8f3fd]" />
+              <Skeleton className="h-4 w-14 rounded-full bg-[#e8f3fd]" />
             </div>
             <div className="progress" aria-hidden="true">
               {Array.from({ length: 5 }, (_, i) => (
-                <Skeleton key={i} className="h-[9px] flex-1 rounded-full bg-[#e8f2ff]" />
+                <Skeleton key={i} className="h-[9px] flex-1 rounded-full bg-[#e8f3fd]" />
               ))}
             </div>
             <div className="question-skeleton">
-              <Skeleton className="mb-3 h-7 w-[92%] rounded-lg bg-[#e8f2ff]" />
-              <Skeleton className="mb-8 h-7 w-[70%] rounded-lg bg-[#e8f2ff]" />
+              <Skeleton className="mb-3 h-7 w-[92%] rounded-lg bg-[#e8f3fd]" />
+              <Skeleton className="mb-8 h-7 w-[70%] rounded-lg bg-[#e8f3fd]" />
             </div>
             <div className="option-skeleton-list" aria-hidden="true">
               {Array.from({ length: 5 }, (_, i) => (
                 <div className="option-skeleton" key={i}>
-                  <Skeleton className="size-8 shrink-0 rounded-full bg-[#dce9fa]" />
-                  <Skeleton className="h-4 flex-1 rounded-full bg-[#dce9fa]" />
+                  <Skeleton className="size-8 shrink-0 rounded-full bg-[#d7e6f5]" />
+                  <Skeleton className="h-4 flex-1 rounded-full bg-[#d7e6f5]" />
                 </div>
               ))}
             </div>
-            <Skeleton className="mt-9 h-[52px] w-full rounded-full bg-[#e8f2ff]" />
-            <Skeleton className="mx-auto mt-3 h-3 w-40 rounded-full bg-[#e8f2ff]" />
+            <Skeleton className="mt-9 h-[52px] w-full rounded-full bg-[#e8f3fd]" />
+            <Skeleton className="mx-auto mt-3 h-3 w-40 rounded-full bg-[#e8f3fd]" />
           </section>
           <footer>Value Family Hospital <span>•</span> Service with a difference</footer>
         </div>

@@ -1,13 +1,13 @@
 @import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap");
 
 .page {
-  --blue: #0875e2;
+  --blue: #2e5aa7;
+  --sea-breeze: #86c5ff;
+  --cream: #f8e6a0;
+  --citrus: #ffa62b;
   --navy: #092957;
   --form-muted: #526b88;
-  --line: #d5e5ed;
-  --teal: #137d80;
-  --peach: #fff0e3;
-  --coral: #bd6250;
+  --line: #d7e6f5;
   --font: "DM Sans", Arial, sans-serif;
   min-height: 100svh;
   display: flex;
@@ -16,7 +16,7 @@
   padding: 32px 24px;
   position: relative;
   overflow: hidden;
-  background: linear-gradient(145deg, #f1f8ff 0%, #f5faf8 54%, #fff8f1 100%);
+  background: linear-gradient(145deg, #edf7ff 0%, #f7fbff 58%, #fffaf0 100%);
   color: var(--navy);
   font-family: var(--font);
 }
@@ -41,8 +41,12 @@
 }
 .page button:focus-visible,
 .page textarea:focus-visible {
-  outline: 3px solid #62adff;
+  outline: 3px solid var(--sea-breeze);
   outline-offset: 4px;
+}
+.page ::selection {
+  background: var(--sea-breeze);
+  color: var(--navy);
 }
 .page h1:focus {
   outline: none;
@@ -83,7 +87,7 @@
 .brand strong {
   font-size: 17px;
   letter-spacing: -0.5px;
-  color: #0966c7;
+  color: var(--blue);
   white-space: nowrap;
 }
 .brand strong span {
@@ -91,7 +95,7 @@
 }
 .brand small {
   display: block;
-  color: #5e9de2;
+  color: #446799;
   font-size: 9px;
   letter-spacing: 0.15px;
   margin-top: 2px;
@@ -106,14 +110,14 @@
 .care-label > span {
   width: 6px;
   height: 6px;
-  background: var(--teal);
+  background: var(--citrus);
   border-radius: 50%;
 }
 .feedback-card {
   position: relative;
   overflow: hidden;
   background: #fff;
-  border: 1px solid #d9e8ed;
+  border: 1px solid #dae7f3;
   border-radius: 26px;
   width: 420px;
   min-height: 660px;
@@ -133,7 +137,7 @@
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 1.7px;
-  color: #7392b7;
+  color: var(--form-muted);
   margin-bottom: 13px;
 }
 .page h1 {
@@ -147,7 +151,7 @@
 .welcome-copy p {
   font-size: 18px;
   line-height: 1.5;
-  color: #587bab;
+  color: var(--form-muted);
   margin: 16px 0 0;
 }
 .illustration {
@@ -157,9 +161,9 @@
   margin: 18px auto 22px;
 }
 .primary {
-  border: 1px solid #086dce;
+  border: 1px solid var(--blue);
   border-radius: 30px;
-  background: #0b72d1;
+  background: var(--blue);
   color: #fff;
   min-height: 52px;
   width: 100%;
@@ -175,14 +179,15 @@
   z-index: 1;
 }
 .primary:hover:not(:disabled) {
-  background: #075fae;
+  background: #244b91;
 }
 .primary:active:not(:disabled) {
   transform: translateY(0);
 }
 .primary:disabled {
-  background: #a1c9ef;
-  border-color: #a1c9ef;
+  background: #d9e7f5;
+  border-color: #d9e7f5;
+  color: #435b7d;
 }
 .primary svg {
   width: 23px;
@@ -195,7 +200,7 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  color: #6084b6;
+  color: var(--form-muted);
   font-size: 12px;
   margin: 17px 0 8px;
 }
@@ -209,7 +214,7 @@
   left: -30%;
   right: -30%;
   bottom: -69px;
-  background: #e1efff;
+  background: var(--cream);
   border-radius: 50% 55% 0 0;
   transform: rotate(-7deg);
   pointer-events: none;
@@ -217,7 +222,7 @@
 .wave:after {
   content: "";
   position: absolute;
-  background: #edf6ff;
+  background: #e9f5ff;
   width: 75%;
   height: 80px;
   left: -12%;
@@ -236,7 +241,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  color: var(--teal);
+  color: var(--blue);
   font-size: 12px;
 }
 .step-anon svg {
@@ -256,7 +261,7 @@
   padding: 12px 16px;
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: #f4f8fe;
+  background: #f2f8ff;
 }
 .question-skeleton {
   min-height: 90px;
@@ -266,7 +271,7 @@
   display: flex;
   gap: 5px;
   align-items: center;
-  color: #006be1;
+  color: var(--blue);
   background: none;
   border: 0;
   padding: 0;
@@ -285,10 +290,10 @@
   flex: 1;
   height: 9px;
   border-radius: 20px;
-  background: #e6f1f2;
+  background: #e8f3fd;
 }
 .progress .filled {
-  background: #0b72d1;
+  background: var(--blue);
 }
 .question {
   font-size: 23px;
@@ -314,24 +319,24 @@
   min-height: 57px;
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: #f8fbfb;
+  background: #f5faff;
   cursor: pointer;
   font-size: 15px;
   transition: background 0.15s, border-color 0.15s;
 }
 .option > svg {
-  color: #0773dc;
+  color: var(--blue);
   flex-shrink: 0;
   width: 31px;
   height: 31px;
 }
 .option:hover {
-  background: #eef8f6;
-  border-color: #85c8c0;
+  background: #e8f4ff;
+  border-color: var(--sea-breeze);
 }
 .option.selected {
-  background: #0b72d1;
-  border-color: #0b72d1;
+  background: var(--blue);
+  border-color: var(--blue);
   color: white;
   box-shadow: none;
 }
@@ -345,7 +350,7 @@
   height: 1px;
 }
 .option:has(input:focus-visible) {
-  outline: 3px solid #74b7ff;
+  outline: 3px solid var(--sea-breeze);
   outline-offset: 3px;
 }
 .selection-check {
@@ -375,14 +380,14 @@
   font-size: 16px;
 }
 .page textarea::placeholder {
-  color: #87a1c5;
+  color: var(--form-muted);
 }
 .contact-optional {
   margin-top: 22px;
   padding: 16px;
   border: 1px solid var(--line);
   border-radius: 13px;
-  background: #f7fbff;
+  background: #f3f9ff;
 }
 .contact-optional-title {
   margin: 0;
@@ -394,7 +399,7 @@
   margin: 6px 0 14px;
   font-size: 12px;
   line-height: 1.45;
-  color: #6f88a9;
+  color: var(--form-muted);
 }
 .contact-field {
   display: grid;
@@ -420,11 +425,11 @@
   font-size: 15px;
 }
 .contact-field input::placeholder {
-  color: #87a1c5;
+  color: var(--form-muted);
 }
 .contact-field input:focus {
   outline: 3px solid #dceeff;
-  border-color: #4b9be5;
+  border-color: var(--blue);
 }
 .comment-meta {
   display: flex;
@@ -447,15 +452,26 @@
   margin-top: 34px;
 }
 .heart-badge {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--peach);
-  color: var(--coral);
+  background: #fff2c9;
+  color: #b96500;
   width: 78px;
   height: 78px;
   border-radius: 50%;
   flex-shrink: 0;
+}
+.heart-badge::after {
+  content: "";
+  position: absolute;
+  top: 9px;
+  right: 7px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--citrus);
 }
 .heart-badge svg {
   width: 34px;
@@ -474,7 +490,7 @@
 .community {
   font-family: Georgia, serif;
   font-style: italic;
-  color: var(--teal);
+  color: var(--blue);
   font-size: 16px;
   text-align: center;
   margin: 37px 0 4px;
@@ -483,7 +499,7 @@
 }
 .preview-note {
   font-size: 10px;
-  color: #8199b7;
+  color: var(--form-muted);
   text-align: center;
   margin-top: 20px;
 }
@@ -506,13 +522,13 @@
   margin: 18px 0 14px;
 }
 .success > p:not(.community) {
-  color: #587bab;
+  color: var(--form-muted);
   font-size: 17px;
   line-height: 1.6;
 }
 .demo-note {
   font-size: 12px;
-  color: #6f88a9;
+  color: var(--form-muted);
   background: #f1f7ff;
   border-radius: 10px;
   line-height: 1.6;
