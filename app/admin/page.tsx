@@ -42,12 +42,13 @@ type QuestionStats = {
 };
 
 const chartColors = [
-  'var(--chart-1)',
-  'var(--chart-2)',
-  'var(--chart-3)',
-  'var(--chart-4)',
-  'var(--chart-5)',
-  '#94a3b8',
+  '#0b72d1',
+  '#14b8a6',
+  '#f59e0b',
+  '#8b5cf6',
+  '#ef4444',
+  '#22c55e',
+  '#ec4899',
   '#64748b',
 ];
 
@@ -271,75 +272,72 @@ export default function AdminOverview() {
 function QuestionBreakdownCard({ stats }: { stats: QuestionStats }) {
   const { question, options, totalAnswers, average } = stats;
   const hasData = totalAnswers > 0;
+  const maxCount = Math.max(...options.map((option) => option.count), 1);
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-base leading-snug" title={question.prompt}>
-          {shortPrompt(question.prompt)}
-        </CardTitle>
-        <CardDescription>
-          {question.question_type === 'rating' ? 'Rating question' : 'Multiple choice'} ·{' '}
-          {totalAnswers} answer{totalAnswers === 1 ? '' : 's'}
-        </CardDescription>
+      <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
+        <div className="min-w-0">
+          <CardTitle className="text-base leading-snug" title={question.prompt}>
+            {shortPrompt(question.prompt)}
+          </CardTitle>
+          <CardDescription>
+            {question.question_type === 'rating' ? 'Rating question' : 'Multiple choice'} ·{' '}
+            {totalAnswers} answer{totalAnswers === 1 ? '' : 's'}
+          </CardDescription>
+        </div>
+        {hasData && average != null ? (
+          <Badge variant="secondary" className="shrink-0">
+            Avg {average}/5
+          </Badge>
+        ) : null}
       </CardHeader>
       <CardContent>
         {!hasData ? (
           <p className="py-8 text-center text-sm text-muted-foreground">No answers yet for this question.</p>
         ) : (
-          <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
-            <div
-              className="relative mx-auto size-36 shrink-0 rounded-full sm:mx-0"
-              style={{
-                background: `conic-gradient(${options
-                  .map((option, index) => {
-                    const start = options.slice(0, index).reduce((sum, item) => sum + item.pct, 0);
-                    return `${chartColors[index % chartColors.length]} ${start}% ${start + option.pct}%`;
-                  })
-                  .join(', ')})`,
-              }}
-            >
-              <div className="absolute inset-7 flex flex-col items-center justify-center rounded-full bg-card text-center">
-                {average != null ? (
-                  <>
-                    <strong className="font-heading text-2xl font-extrabold">{average}</strong>
-                    <span className="text-[10px] text-muted-foreground">avg / 5</span>
-                  </>
-                ) : (
-                  <>
-                    <strong className="font-heading text-2xl font-extrabold">{totalAnswers}</strong>
-                    <span className="text-[10px] text-muted-foreground">answers</span>
-                  </>
-                )}
-              </div>
+          <div className="space-y-4">
+            <div className="flex h-44 items-end gap-2 sm:gap-3">
+              {options.map((option, index) => {
+                const heightPct = Math.max((option.count / maxCount) * 100, option.count > 0 ? 8 : 0);
+                const color = chartColors[index % chartColors.length];
+                return (
+                  <div key={option.label} className="flex min-w-0 flex-1 flex-col items-center gap-2">
+                    <span className="text-xs font-semibold text-foreground">{option.count}</span>
+                    <div className="flex h-32 w-full items-end justify-center rounded-md bg-muted/50 px-1 pt-2">
+                      <div
+                        className="w-full max-w-10 rounded-t-md transition-[height]"
+                        style={{ height: `${heightPct}%`, background: color }}
+                        title={`${option.label}: ${option.count} (${option.pct}%)`}
+                      />
+                    </div>
+                    <span
+                      className="line-clamp-2 min-h-8 w-full text-center text-[10px] leading-tight text-muted-foreground"
+                      title={option.label}
+                    >
+                      {option.label}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
 
-            <div className="grid w-full flex-1 gap-3">
+            <div className="grid gap-2">
               {options.map((option, index) => (
-                <div key={option.label} className="grid gap-1.5">
-                  <div className="flex items-center justify-between gap-3 text-xs">
-                    <span className="flex min-w-0 items-center gap-2 text-muted-foreground">
-                      <span
-                        className="size-2 shrink-0 rounded-full"
-                        style={{ background: chartColors[index % chartColors.length] }}
-                      />
-                      <span className="truncate" title={option.label}>
-                        {option.label}
-                      </span>
-                    </span>
-                    <strong className="shrink-0">
-                      {option.count} · {option.pct}%
-                    </strong>
-                  </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full rounded-full"
-                      style={{
-                        width: `${option.pct}%`,
-                        background: chartColors[index % chartColors.length],
-                      }}
+                <div
+                  key={`${option.label}-legend`}
+                  className="flex items-center justify-between gap-3 text-xs"
+                >
+                  <span className="flex min-w-0 items-center gap-2 text-muted-foreground">
+                    <span
+                      className="size-2.5 shrink-0 rounded-sm"
+                      style={{ background: chartColors[index % chartColors.length] }}
                     />
-                  </div>
+                    <span className="truncate" title={option.label}>
+                      {option.label}
+                    </span>
+                  </span>
+                  <strong className="shrink-0">{option.pct}%</strong>
                 </div>
               ))}
             </div>
