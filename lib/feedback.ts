@@ -72,11 +72,11 @@ export function formatResponseDate(iso: string) {
 export function shortWait(value: string) {
   if (value.startsWith('Very short')) return 'Very short'
   if (value.startsWith('Short')) return 'Short'
-  if (value.startsWith('Reasonable') || value.includes('30 minutes–1 hour') || value.includes('30 minutes-1 hour')) {
-    return '30 min–1 hr'
-  }
-  if (value.startsWith('Long') || value.startsWith('1–2 hours') || value.startsWith('1-2 hours')) return '1–2 hours'
-  if (value.startsWith('Very long') || value.startsWith('More than 2 hours')) return 'Over 2 hours'
+  if (value.startsWith('Reasonable')) return 'Reasonable'
+  if (value.startsWith('Long') || value.startsWith('More than 2 hours')) return 'Long'
+  if (value.startsWith('Very long')) return 'Very long'
+  if (value.includes('30 minutes–1 hour') || value.includes('30 minutes-1 hour')) return 'Short'
+  if (value.startsWith('1–2 hours') || value.startsWith('1-2 hours')) return 'Reasonable'
   return value
 }
 
