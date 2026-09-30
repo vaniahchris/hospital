@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Download, FileText, Trash2, X } from 'lucide-react';
+import { Download, FileText, PhoneCall, Trash2, X } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { AdminShell } from '../shared';
@@ -44,6 +44,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 type AnswerJoin = {
   value: string;
@@ -155,6 +156,7 @@ export default function Responses() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [questionFilters, setQuestionFilters] = useState<Record<string, string>>({});
+  const [activeTab, setActiveTab] = useState('all');
 
   const filterQuestions = useMemo(
     () => questions.filter((q) => q.question_type === 'rating' || q.question_type === 'choice'),
@@ -221,6 +223,13 @@ export default function Responses() {
     [responses, startDate, endDate, filterQuestions, questionFilters]
   );
 
+  const urgentFiltered = useMemo(
+    () => filtered.filter((row) => !!row.contactPhone || !!row.contactEmail),
+    [filtered]
+  );
+
+  const visibleRows = activeTab === 'urgent' ? urgentFiltered : filtered;
+
   const filtersActive =
     !!startDate ||
     !!endDate ||
@@ -245,7 +254,7 @@ export default function Responses() {
   function exportCsv() {
     const questionHeaders = filterQuestions.map((q) => shortPrompt(q.prompt));
     const header = ['ID', 'Date', ...questionHeaders, 'Score', 'Comment', 'Phone', 'Email'].join(',');
-    const rows = filtered.map((r) => {
+    const rows = visibleRows.map((r) => {
       const answers = filterQuestions.map((q) => {
         const value = r.answersByQuestionId[q.id] ?? '';
         return `"${value.replaceAll('"', '""')}"`;
@@ -264,7 +273,8 @@ export default function Responses() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'feedback-responses.csv';
+    a.download =
+      activeTab === 'urgent' ? 'feedback-follow-up.csv' : 'feedback-responses.csv';
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -273,19 +283,23 @@ export default function Responses() {
     const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
     const generatedAt = new Date().toLocaleString();
     const questionHeaders = filterQuestions.map((q) => shortPrompt(q.prompt));
+    const title =
+      activeTab === 'urgent'
+        ? 'Value Family Hospital — Urgent Follow-up'
+        : 'Value Family Hospital — Patient Responses';
 
     doc.setFontSize(16);
-    doc.text('Value Family Hospital — Patient Responses', 40, 36);
+    doc.text(title, 40, 36);
     doc.setFontSize(10);
     doc.setTextColor(90);
     doc.text(`Date range: ${formatRangeLabel(startDate, endDate)}`, 40, 54);
-    doc.text(`Exported: ${generatedAt} · ${filtered.length} response(s)`, 40, 68);
+    doc.text(`Exported: ${generatedAt} · ${visibleRows.length} response(s)`, 40, 68);
     doc.setTextColor(0);
 
     autoTable(doc, {
       startY: 84,
       head: [['Response', 'Date', ...questionHeaders, 'Score', 'Comment', 'Phone', 'Email']],
-      body: filtered.map((r) => [
+      body: visibleRows.map((r) => [
         r.id,
         r.date,
         ...filterQuestions.map((q) => r.answersByQuestionId[q.id] ?? '—'),
@@ -299,7 +313,7 @@ export default function Responses() {
       margin: { left: 40, right: 40 },
     });
 
-    doc.save('feedback-responses.pdf');
+    doc.save(activeTab === 'urgent' ? 'feedback-follow-up.pdf' : 'feedback-responses.pdf');
   }
 
   async function confirmDelete() {
@@ -348,11 +362,11 @@ export default function Responses() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={exportCsv} disabled={!filtered.length}>
+            <Button variant="outline" onClick={exportCsv} disabled={!visibleRows.length}>
               <Download data-icon="inline-start" />
               Export CSV
             </Button>
-            <Button variant="outline" onClick={exportPdf} disabled={!filtered.length}>
+            <Button variant="outline" onClick={exportPdf} disabled={!visibleRows.length}>
               <FileText data-icon="inline-start" />
               Export PDF
             </Button>
@@ -412,99 +426,60 @@ export default function Responses() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent responses</CardTitle>
-            <CardDescription>
-              {loading
-                ? 'Loading…'
-                : `Showing ${filtered.length} of ${responses.length} response${responses.length === 1 ? '' : 's'}`}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {error ? (
-              <Alert variant="destructive" className="mb-4">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            ) : null}
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Response</TableHead>
-                  <TableHead>Date</TableHead>
-                  {filterQuestions.map((question) => (
-                    <TableHead key={question.id} title={question.prompt}>
-                      {shortPrompt(question.prompt)}
-                    </TableHead>
-                  ))}
-                  <TableHead>Score</TableHead>
-                  <TableHead>Comment</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead className="w-12 text-right"> </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((row) => {
-                  const score = scoreForResponse(row, filterQuestions);
-                  return (
-                    <TableRow key={row.submissionId}>
-                      <TableCell className="font-semibold">{row.id}</TableCell>
-                      <TableCell>{row.date}</TableCell>
-                      {filterQuestions.map((question) => (
-                        <TableCell key={question.id}>
-                          {row.answersByQuestionId[question.id] ?? '—'}
-                        </TableCell>
-                      ))}
-                      <TableCell>
-                        {score ? (
-                          <Badge
-                            variant="secondary"
-                            className={
-                              score >= 4
-                                ? 'bg-emerald-50 text-emerald-700'
-                                : 'bg-amber-50 text-amber-800'
-                            }
-                          >
-                            {score}
-                          </Badge>
-                        ) : (
-                          '—'
-                        )}
-                      </TableCell>
-                      <TableCell className="max-w-[180px] truncate" title={row.comment}>
-                        {row.comment || '—'}
-                      </TableCell>
-                      <TableCell className="max-w-[140px] truncate" title={row.contactPhone}>
-                        {row.contactPhone || '—'}
-                      </TableCell>
-                      <TableCell className="max-w-[180px] truncate" title={row.contactEmail}>
-                        {row.contactEmail || '—'}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="text-destructive"
-                          aria-label={`Delete ${row.id}`}
-                          disabled={deletingId === row.submissionId}
-                          onClick={() => setPendingDelete(row)}
-                        >
-                          <Trash2 />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-            {!loading && !filtered.length ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">
-                {responses.length ? 'No responses match these filters.' : 'No responses yet.'}
-              </p>
-            ) : null}
-          </CardContent>
-        </Card>
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value ?? 'all')}>
+          <TabsList>
+            <TabsTrigger value="all">All responses</TabsTrigger>
+            <TabsTrigger value="urgent" className="gap-2">
+              <PhoneCall className="size-3.5" />
+              Needs follow-up
+              {urgentFiltered.length ? (
+                <Badge className="h-5 min-w-5 rounded-full bg-destructive px-1.5 text-[10px] text-white">
+                  {urgentFiltered.length}
+                </Badge>
+              ) : null}
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="all" className="mt-4">
+            <ResponseTableCard
+              title="Recent responses"
+              description={
+                loading
+                  ? 'Loading…'
+                  : `Showing ${visibleRows.length} of ${responses.length} response${responses.length === 1 ? '' : 's'}`
+              }
+              error={error}
+              loading={loading}
+              rows={visibleRows}
+              totalCount={responses.length}
+              emptyFilteredMessage="No responses match these filters."
+              filterQuestions={filterQuestions}
+              deletingId={deletingId}
+              onDelete={setPendingDelete}
+            />
+          </TabsContent>
+
+          <TabsContent value="urgent" className="mt-4">
+            <ResponseTableCard
+              title="Urgent follow-up"
+              description={
+                loading
+                  ? 'Loading…'
+                  : `${urgentFiltered.length} response${urgentFiltered.length === 1 ? '' : 's'} left contact details — reach out as soon as possible.`
+              }
+              error={error}
+              loading={loading}
+              rows={visibleRows}
+              totalCount={responses.filter((r) => r.contactPhone || r.contactEmail).length}
+              emptyFilteredMessage="No follow-up contacts match these filters."
+              emptyAllMessage="No patients have shared contact details yet."
+              filterQuestions={filterQuestions}
+              deletingId={deletingId}
+              onDelete={setPendingDelete}
+              urgent
+            />
+          </TabsContent>
+        </Tabs>
       </main>
 
       <AlertDialog
@@ -538,6 +513,129 @@ export default function Responses() {
         </AlertDialogContent>
       </AlertDialog>
     </AdminShell>
+  );
+}
+
+function ResponseTableCard({
+  title,
+  description,
+  error,
+  loading,
+  rows,
+  totalCount,
+  emptyFilteredMessage,
+  emptyAllMessage = 'No responses yet.',
+  filterQuestions,
+  deletingId,
+  onDelete,
+  urgent = false,
+}: {
+  title: string;
+  description: string;
+  error: string;
+  loading: boolean;
+  rows: AdminResponse[];
+  totalCount: number;
+  emptyFilteredMessage: string;
+  emptyAllMessage?: string;
+  filterQuestions: QuestionRow[];
+  deletingId: string | null;
+  onDelete: (row: AdminResponse) => void;
+  urgent?: boolean;
+}) {
+  return (
+    <Card className={urgent ? 'ring-1 ring-destructive/20' : undefined}>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          {urgent ? <PhoneCall className="size-4 text-destructive" /> : null}
+          {title}
+        </CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {error ? (
+          <Alert variant="destructive" className="mb-4">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : null}
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Response</TableHead>
+              <TableHead>Date</TableHead>
+              {filterQuestions.map((question) => (
+                <TableHead key={question.id} title={question.prompt}>
+                  {shortPrompt(question.prompt)}
+                </TableHead>
+              ))}
+              <TableHead>Score</TableHead>
+              <TableHead>Comment</TableHead>
+              <TableHead>Phone</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead className="w-12 text-right"> </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((row) => {
+              const score = scoreForResponse(row, filterQuestions);
+              return (
+                <TableRow key={row.submissionId} className={urgent ? 'bg-destructive/5' : undefined}>
+                  <TableCell className="font-semibold">{row.id}</TableCell>
+                  <TableCell>{row.date}</TableCell>
+                  {filterQuestions.map((question) => (
+                    <TableCell key={question.id}>
+                      {row.answersByQuestionId[question.id] ?? '—'}
+                    </TableCell>
+                  ))}
+                  <TableCell>
+                    {score ? (
+                      <Badge
+                        variant="secondary"
+                        className={
+                          score >= 4
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : 'bg-amber-50 text-amber-800'
+                        }
+                      >
+                        {score}
+                      </Badge>
+                    ) : (
+                      '—'
+                    )}
+                  </TableCell>
+                  <TableCell className="max-w-[180px] truncate" title={row.comment}>
+                    {row.comment || '—'}
+                  </TableCell>
+                  <TableCell className="max-w-[140px] truncate font-medium" title={row.contactPhone}>
+                    {row.contactPhone || '—'}
+                  </TableCell>
+                  <TableCell className="max-w-[180px] truncate font-medium" title={row.contactEmail}>
+                    {row.contactEmail || '—'}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-destructive"
+                      aria-label={`Delete ${row.id}`}
+                      disabled={deletingId === row.submissionId}
+                      onClick={() => onDelete(row)}
+                    >
+                      <Trash2 />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+        {!loading && !rows.length ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            {totalCount ? emptyFilteredMessage : emptyAllMessage}
+          </p>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }
 
