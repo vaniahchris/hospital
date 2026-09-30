@@ -78,6 +78,23 @@ type AdminResponse = {
 };
 
 const ALL = 'all';
+const SEEN_URGENT_KEY = 'admin-seen-urgent-ids';
+
+function readSeenUrgentIds() {
+  if (typeof window === 'undefined') return [] as string[];
+  try {
+    const raw = window.localStorage.getItem(SEEN_URGENT_KEY);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : [];
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeSeenUrgentIds(ids: string[]) {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(SEEN_URGENT_KEY, JSON.stringify(ids));
+}
 
 function displayAnswer(value: string) {
   const recommend = shortRecommend(value);
@@ -157,6 +174,11 @@ export default function Responses() {
   const [endDate, setEndDate] = useState('');
   const [questionFilters, setQuestionFilters] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState('all');
+  const [seenUrgentIds, setSeenUrgentIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    setSeenUrgentIds(readSeenUrgentIds());
+  }, []);
 
   const filterQuestions = useMemo(
     () => questions.filter((q) => q.question_type === 'rating' || q.question_type === 'choice'),
@@ -228,7 +250,23 @@ export default function Responses() {
     [filtered]
   );
 
+  const unseenUrgentCount = useMemo(
+    () => urgentFiltered.filter((row) => !seenUrgentIds.includes(row.submissionId)).length,
+    [urgentFiltered, seenUrgentIds]
+  );
+
   const visibleRows = activeTab === 'urgent' ? urgentFiltered : filtered;
+
+  useEffect(() => {
+    if (activeTab !== 'urgent' || !urgentFiltered.length) return;
+    const currentIds = urgentFiltered.map((row) => row.submissionId);
+    setSeenUrgentIds((prev) => {
+      const next = [...new Set([...prev, ...currentIds])];
+      if (next.length === prev.length && next.every((id, index) => id === prev[index])) return prev;
+      writeSeenUrgentIds(next);
+      return next;
+    });
+  }, [activeTab, urgentFiltered]);
 
   const filtersActive =
     !!startDate ||
@@ -432,9 +470,9 @@ export default function Responses() {
             <TabsTrigger value="urgent" className="gap-2">
               <PhoneCall className="size-3.5" />
               Needs follow-up
-              {urgentFiltered.length ? (
+              {unseenUrgentCount > 0 ? (
                 <Badge className="h-5 min-w-5 rounded-full bg-destructive px-1.5 text-[10px] text-white">
-                  {urgentFiltered.length}
+                  {unseenUrgentCount}
                 </Badge>
               ) : null}
             </TabsTrigger>
