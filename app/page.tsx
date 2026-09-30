@@ -64,31 +64,8 @@ function Brand() {
   );
 }
 
-function Illustration() {
-  return (
-    <svg className="illustration" viewBox="0 0 280 200" fill="none" aria-hidden="true">
-      <path d="M39 97C65 69 77 21 121 22c46-1 44 33 73 43 66 23 73 77 30 104-32 22-132 22-166 4-35-18-40-52-19-76Z" fill="#e0eeff" />
-      <g transform="rotate(-5 126 108)">
-        <rect x="80" y="42" width="107" height="139" rx="11" fill="#bddbff" />
-        <rect x="74" y="38" width="107" height="139" rx="11" fill="white" stroke="#0c6dce" strokeWidth="4" />
-        <rect x="81" y="45" width="93" height="123" rx="6" stroke="#e1efff" strokeWidth="3" />
-        <path d="M100 35a7 7 0 0 1 7-7h12v-4a12 12 0 0 1 24 0v4h11a7 7 0 0 1 7 7v10h-61Z" fill="#1379dc" />
-        <circle cx="131" cy="23" r="4" fill="white" />
-        {[79, 106, 133].map((y) => (
-          <g key={y}>
-            <rect x="92" y={y} width="13" height="13" rx="2" stroke="#147ad9" strokeWidth="2.5" />
-            <path d={`m95 ${y + 5} 4 4 9-11`} stroke="#147ad9" strokeWidth="2.5" />
-            <path d={`M116 ${y + 3}h42M116 ${y + 10}h25`} stroke="#c5dfff" strokeWidth="3" strokeLinecap="round" />
-          </g>
-        ))}
-      </g>
-      <path d="M197 175s-37-25-37-48c0-23 27-27 37-9 13-18 37-12 37 9 0 23-37 48-37 48Z" fill="#1684ed" stroke="white" strokeWidth="3" />
-    </svg>
-  );
-}
-
 export default function Home() {
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(1);
   const [choiceQuestions, setChoiceQuestions] = useState<QuestionRow[]>([]);
   const [textQuestion, setTextQuestion] = useState<QuestionRow | null>(null);
   const [answers, setAnswers] = useState<(string | null)[]>([]);
@@ -138,7 +115,7 @@ export default function Home() {
     setAnswers(choiceQuestions.map(() => null));
     setComments('');
     setSubmitError('');
-    setStep(0);
+    setStep(1);
   }
 
   async function completeFeedback() {
@@ -208,6 +185,19 @@ export default function Home() {
     );
   }
 
+  if (!choiceQuestions.length) {
+    return (
+      <main className="page">
+        <div className="app-shell">
+          <section className="feedback-card welcome" aria-label="No questions available">
+            <Brand />
+            <p>No feedback questions are available right now.</p>
+          </section>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="page">
       <div className="app-shell">
@@ -216,44 +206,30 @@ export default function Home() {
           <span className="care-label"><span /> Listening. Caring. Improving.</span>
         </div>
         <section
-          className={`feedback-card ${step === 0 ? 'welcome' : ''} ${step >= totalSteps ? 'closing-card' : ''}`}
+          className={`feedback-card ${step >= totalSteps ? 'closing-card' : ''}`}
           aria-label="Patient feedback"
         >
-          {step === 0 ? (
-            <>
-              <Brand />
-              <div className="welcome-copy">
-                <span className="eyebrow">BETTER CARE STARTS WITH YOU</span>
-                <h1 ref={heading} tabIndex={-1}>Your Feedback<br />Matters</h1>
-                <p>
-                  Help us improve our services by<br className="wide-break" /> sharing your experience.<br />
-                  It only takes a minute.
-                </p>
-              </div>
-              <Illustration />
-              <button className="primary" onClick={() => setStep(1)} disabled={!choiceQuestions.length}>
-                Start Feedback <Icon name="arrow" />
-              </button>
-              <p className="privacy"><Icon name="lock" /> Your responses are anonymous</p>
-              <div className="wave" />
-            </>
-          ) : step === successStep ? (
+          {step === successStep ? (
             <div className="success">
               <Brand />
               <div className="heart-badge"><Icon name="heart" /></div>
               <span className="eyebrow">EVERY VOICE MAKES A DIFFERENCE</span>
               <h1 ref={heading} tabIndex={-1}>Thank You!</h1>
               <p>Your feedback helps us provide<br />better care for everyone.</p>
-              <button className="primary" onClick={restart}>Back to Home <Icon name="arrow" /></button>
+              <button className="primary" onClick={restart}>Submit another response <Icon name="arrow" /></button>
               <p className="community">Together for a Healthier Community</p>
               <div className="wave" />
             </div>
           ) : (
             <>
               <div className="step-header">
-                <button className="back" onClick={() => setStep(step - 1)} type="button">
-                  <Icon name="back" />Back
-                </button>
+                {step > 1 ? (
+                  <button className="back" onClick={() => setStep(step - 1)} type="button">
+                    <Icon name="back" />Back
+                  </button>
+                ) : (
+                  <span className="step-anon"><Icon name="lock" /> Anonymous</span>
+                )}
                 <span>{step} of {totalSteps}</span>
               </div>
               <div

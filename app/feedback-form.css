@@ -229,6 +229,17 @@
   color: #7492bb;
   font-size: 15px;
 }
+.step-anon {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #6084b6;
+  font-size: 12px;
+}
+.step-anon svg {
+  width: 15px;
+  height: 15px;
+}
 .back {
   display: flex;
   gap: 5px;
