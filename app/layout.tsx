@@ -18,6 +18,11 @@ const manrope = Manrope({
 export const metadata: Metadata = {
   title: 'Your Feedback Matters | Value Family Hospital',
   description: 'Help Value Family Hospital provide better care by sharing your experience.',
+  icons: {
+    icon: [{ url: '/value-family-hospital-logo.png', type: 'image/png' }],
+    apple: [{ url: '/value-family-hospital-logo.png', type: 'image/png' }],
+    shortcut: '/value-family-hospital-logo.png',
+  },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
