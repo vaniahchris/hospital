@@ -217,7 +217,7 @@ export default function Home() {
               <h1 ref={heading} tabIndex={-1}>Thank You!</h1>
               <p>Your feedback helps us provide<br />better care for everyone.</p>
               <button className="primary" onClick={restart}>Submit another response <Icon name="arrow" /></button>
-              <p className="community">Together for a Healthier Community</p>
+              <p className="community">Service with a difference</p>
               <div className="wave" />
             </div>
           ) : (
@@ -313,7 +313,7 @@ export default function Home() {
                       <p>Your feedback helps us provide better care for everyone.</p>
                     </div>
                   </div>
-                  <p className="community">Together for a Healthier Community</p>
+                  <p className="community">Service with a difference</p>
                   <div className="wave" />
                 </>
               )}

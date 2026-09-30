@@ -71,7 +71,7 @@ export default function AdminLogin() {
           <BadgeLive />
         </div>
         <p className="relative z-10 font-serif text-sm text-primary-foreground/80 italic">
-          Together for a Healthier Community
+          Service with a difference
         </p>
       </section>
 
