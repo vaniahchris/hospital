@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
+import { FormEvent, useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
 import {
   LayoutDashboard,
   ListChecks,
@@ -10,12 +10,24 @@ import {
   ExternalLink,
   LogOut,
   Menu,
+  UserCog,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -31,6 +43,7 @@ export function AdminShell({ children, title }: { children: React.ReactNode; tit
   const [ready, setReady] = useState(false);
   const [email, setEmail] = useState('Administrator');
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -129,7 +142,19 @@ export function AdminShell({ children, title }: { children: React.ReactNode; tit
           <Button
             type="button"
             variant="ghost"
-            className="mt-1 justify-start text-destructive md:hidden"
+            className="mt-1 justify-start md:hidden"
+            onClick={() => {
+              setMobileOpen(false);
+              setAccountOpen(true);
+            }}
+          >
+            <UserCog className="size-4" />
+            Account settings
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            className="justify-start text-destructive md:hidden"
             onClick={logout}
           >
             <LogOut className="size-4" />
@@ -143,6 +168,15 @@ export function AdminShell({ children, title }: { children: React.ReactNode; tit
               View feedback form
               <ExternalLink className="size-3.5" />
             </Link>
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full justify-start"
+            onClick={() => setAccountOpen(true)}
+          >
+            <UserCog className="size-3.5" />
+            Account settings
           </Button>
           <Separator />
           <div className="flex items-center gap-3">
@@ -170,6 +204,10 @@ export function AdminShell({ children, title }: { children: React.ReactNode; tit
               <span className="size-1.5 rounded-full bg-emerald-500" />
               System live
             </Badge>
+            <Button type="button" variant="outline" size="sm" onClick={() => setAccountOpen(true)}>
+              <UserCog data-icon="inline-start" />
+              Account
+            </Button>
             <Button type="button" variant="outline" size="sm" onClick={logout}>
               Sign out
             </Button>
@@ -177,6 +215,209 @@ export function AdminShell({ children, title }: { children: React.ReactNode; tit
         </header>
         {children}
       </div>
+
+      <AccountSettingsDialog
+        email={email}
+        open={accountOpen}
+        onOpenChange={setAccountOpen}
+        onEmailUpdated={setEmail}
+      />
     </div>
+  );
+}
+
+function AccountSettingsDialog({
+  email,
+  open,
+  onOpenChange,
+  onEmailUpdated,
+}: {
+  email: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onEmailUpdated: (email: string) => void;
+}) {
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [nextEmail, setNextEmail] = useState(email);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  useEffect(() => {
+    if (open) setNextEmail(email);
+  }, [open, email]);
+
+  function resetForm() {
+    setCurrentPassword('');
+    setNextEmail(email);
+    setNewPassword('');
+    setConfirmPassword('');
+    setError('');
+    setSuccess('');
+    setLoading(false);
+  }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setError('');
+    setSuccess('');
+
+    const trimmedEmail = nextEmail.trim().toLowerCase();
+    const emailChanged = trimmedEmail !== email.toLowerCase();
+    const passwordChanged = !!newPassword || !!confirmPassword;
+
+    if (!emailChanged && !passwordChanged) {
+      setError('Update your email, password, or both before saving.');
+      return;
+    }
+
+    if (emailChanged && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      setError('Enter a valid email address.');
+      return;
+    }
+
+    if (passwordChanged) {
+      if (newPassword.length < 8) {
+        setError('New password must be at least 8 characters.');
+        return;
+      }
+      if (newPassword !== confirmPassword) {
+        setError('New password and confirmation do not match.');
+        return;
+      }
+      if (newPassword === currentPassword) {
+        setError('New password must be different from the current password.');
+        return;
+      }
+    }
+
+    setLoading(true);
+    const supabase = createClient();
+
+    const { error: verifyError } = await supabase.auth.signInWithPassword({
+      email,
+      password: currentPassword,
+    });
+
+    if (verifyError) {
+      setLoading(false);
+      setError('Current password is incorrect.');
+      return;
+    }
+
+    const updates: { email?: string; password?: string } = {};
+    if (emailChanged) updates.email = trimmedEmail;
+    if (passwordChanged) updates.password = newPassword;
+
+    const { error: updateError } = await supabase.auth.updateUser(updates);
+    setLoading(false);
+
+    if (updateError) {
+      setError(updateError.message);
+      return;
+    }
+
+    const messages: string[] = [];
+    if (passwordChanged) messages.push('Password updated.');
+    if (emailChanged) {
+      messages.push(
+        'Email update started. Check the new inbox to confirm before it fully switches.'
+      );
+      onEmailUpdated(trimmedEmail);
+    }
+
+    setSuccess(messages.join(' '));
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) resetForm();
+        onOpenChange(next);
+      }}
+    >
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Account settings</DialogTitle>
+          <DialogDescription>
+            Change your sign-in email and/or password. Current password is required.
+          </DialogDescription>
+        </DialogHeader>
+        <form className="grid gap-4" onSubmit={submit}>
+          <div className="grid gap-2">
+            <Label htmlFor="account-email">Email</Label>
+            <Input
+              id="account-email"
+              type="email"
+              autoComplete="username"
+              value={nextEmail}
+              onChange={(e) => setNextEmail(e.target.value)}
+              required
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="current-password">Current password</Label>
+            <Input
+              id="current-password"
+              type="password"
+              autoComplete="current-password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              required
+            />
+          </div>
+          <Separator />
+          <p className="text-xs text-muted-foreground">
+            Leave the new password fields blank if you only want to change your email.
+          </p>
+          <div className="grid gap-2">
+            <Label htmlFor="new-password">New password</Label>
+            <Input
+              id="new-password"
+              type="password"
+              autoComplete="new-password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              minLength={8}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="confirm-password">Confirm new password</Label>
+            <Input
+              id="confirm-password"
+              type="password"
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              minLength={8}
+            />
+          </div>
+          {error ? (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          ) : null}
+          {success ? (
+            <Alert>
+              <AlertDescription>{success}</AlertDescription>
+            </Alert>
+          ) : null}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={loading}>
+              {loading ? 'Saving…' : 'Save changes'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
