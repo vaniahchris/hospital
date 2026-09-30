@@ -74,6 +74,8 @@ export default function Home() {
   const [textQuestion, setTextQuestion] = useState<QuestionRow | null>(null);
   const [answers, setAnswers] = useState<(string | null)[]>([]);
   const [comments, setComments] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
@@ -118,6 +120,8 @@ export default function Home() {
   function restart() {
     setAnswers(choiceQuestions.map(() => null));
     setComments('');
+    setContactEmail('');
+    setContactPhone('');
     setSubmitError('');
     setStep(1);
   }
@@ -127,10 +131,15 @@ export default function Home() {
     setSubmitError('');
     const supabase = createClient();
     const submissionId = crypto.randomUUID();
+    const email = contactEmail.trim();
+    const phone = contactPhone.trim();
 
-    const { error: submissionError } = await supabase
-      .from('submissions')
-      .insert({ id: submissionId, comment: comments.trim() || null });
+    const { error: submissionError } = await supabase.from('submissions').insert({
+      id: submissionId,
+      comment: comments.trim() || null,
+      contact_email: email || null,
+      contact_phone: phone || null,
+    });
 
     if (submissionError) {
       setSubmitting(false);
@@ -318,8 +327,39 @@ export default function Home() {
                       maxLength={2000}
                     />
                     <div className="comment-meta">
-                      <span>Please avoid including personal details.</span>
+                      <span>Comments stay anonymous unless you share contact details below.</span>
                       <span>{comments.length}/2000</span>
+                    </div>
+                    <div className="contact-optional">
+                      <p className="contact-optional-title">Want us to follow up? (optional)</p>
+                      <p className="contact-optional-hint">
+                        Leave a phone number or email only if you would like us to reach you.
+                      </p>
+                      <label className="contact-field" htmlFor="contact-phone">
+                        <span>Phone number</span>
+                        <input
+                          id="contact-phone"
+                          type="tel"
+                          inputMode="tel"
+                          autoComplete="tel"
+                          value={contactPhone}
+                          onChange={(e) => setContactPhone(e.target.value)}
+                          placeholder="e.g. 0700 000 000"
+                          maxLength={40}
+                        />
+                      </label>
+                      <label className="contact-field" htmlFor="contact-email">
+                        <span>Email</span>
+                        <input
+                          id="contact-email"
+                          type="email"
+                          autoComplete="email"
+                          value={contactEmail}
+                          onChange={(e) => setContactEmail(e.target.value)}
+                          placeholder="e.g. name@email.com"
+                          maxLength={120}
+                        />
+                      </label>
                     </div>
                   </>
                 )}

@@ -59,6 +59,8 @@ type AnswerJoin = {
 type SubmissionJoin = {
   id: string;
   comment: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
   created_at: string;
   answers: AnswerJoin[];
 };
@@ -69,6 +71,8 @@ type AdminResponse = {
   id: string;
   date: string;
   comment: string;
+  contactEmail: string;
+  contactPhone: string;
   answersByQuestionId: Record<string, string>;
 };
 
@@ -102,6 +106,8 @@ function mapSubmission(row: SubmissionJoin, index: number, total: number): Admin
     id: `FB-${1000 + (total - index)}`,
     date: formatResponseDate(row.created_at),
     comment: row.comment ?? '',
+    contactEmail: row.contact_email ?? '',
+    contactPhone: row.contact_phone ?? '',
     answersByQuestionId,
   };
 }
@@ -165,7 +171,7 @@ export default function Responses() {
       supabase
         .from('submissions')
         .select(
-          'id, comment, created_at, answers(value, question_id, question:questions(id, sort_order, question_type, prompt))'
+          'id, comment, contact_email, contact_phone, created_at, answers(value, question_id, question:questions(id, sort_order, question_type, prompt))'
         )
         .order('created_at', { ascending: false }),
     ]);
@@ -238,7 +244,7 @@ export default function Responses() {
 
   function exportCsv() {
     const questionHeaders = filterQuestions.map((q) => shortPrompt(q.prompt));
-    const header = ['ID', 'Date', ...questionHeaders, 'Score', 'Comment'].join(',');
+    const header = ['ID', 'Date', ...questionHeaders, 'Score', 'Comment', 'Phone', 'Email'].join(',');
     const rows = filtered.map((r) => {
       const answers = filterQuestions.map((q) => {
         const value = r.answersByQuestionId[q.id] ?? '';
@@ -250,6 +256,8 @@ export default function Responses() {
         ...answers,
         String(scoreForResponse(r, filterQuestions) || ''),
         `"${r.comment.replaceAll('"', '""')}"`,
+        `"${r.contactPhone.replaceAll('"', '""')}"`,
+        `"${r.contactEmail.replaceAll('"', '""')}"`,
       ].join(',');
     });
     const blob = new Blob([[header, ...rows].join('\n')], { type: 'text/csv' });
@@ -276,13 +284,15 @@ export default function Responses() {
 
     autoTable(doc, {
       startY: 84,
-      head: [['Response', 'Date', ...questionHeaders, 'Score', 'Comment']],
+      head: [['Response', 'Date', ...questionHeaders, 'Score', 'Comment', 'Phone', 'Email']],
       body: filtered.map((r) => [
         r.id,
         r.date,
         ...filterQuestions.map((q) => r.answersByQuestionId[q.id] ?? '—'),
         String(scoreForResponse(r, filterQuestions) || '—'),
         r.comment || '—',
+        r.contactPhone || '—',
+        r.contactEmail || '—',
       ]),
       styles: { fontSize: 8, cellPadding: 4, overflow: 'linebreak' },
       headStyles: { fillColor: [11, 114, 209], textColor: 255 },
@@ -429,6 +439,8 @@ export default function Responses() {
                   ))}
                   <TableHead>Score</TableHead>
                   <TableHead>Comment</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead>Email</TableHead>
                   <TableHead className="w-12 text-right"> </TableHead>
                 </TableRow>
               </TableHeader>
@@ -460,8 +472,14 @@ export default function Responses() {
                           '—'
                         )}
                       </TableCell>
-                      <TableCell className="max-w-[220px] truncate" title={row.comment}>
-                        {row.comment}
+                      <TableCell className="max-w-[180px] truncate" title={row.comment}>
+                        {row.comment || '—'}
+                      </TableCell>
+                      <TableCell className="max-w-[140px] truncate" title={row.contactPhone}>
+                        {row.contactPhone || '—'}
+                      </TableCell>
+                      <TableCell className="max-w-[180px] truncate" title={row.contactEmail}>
+                        {row.contactEmail || '—'}
                       </TableCell>
                       <TableCell className="text-right">
                         <Button
