@@ -8,6 +8,7 @@ import { AdminShell } from '../shared';
 import { createClient } from '@/lib/supabase/client';
 import {
   formatResponseDate,
+  hasNegativeReview,
   scoreForCare,
   shortRecommend,
   shortWait,
@@ -246,7 +247,11 @@ export default function Responses() {
   );
 
   const urgentFiltered = useMemo(
-    () => filtered.filter((row) => !!row.contactPhone || !!row.contactEmail),
+    () =>
+      filtered.filter(
+        (row) =>
+          (!!row.contactPhone || !!row.contactEmail) && hasNegativeReview(row.answersByQuestionId)
+      ),
     [filtered]
   );
 
@@ -503,14 +508,19 @@ export default function Responses() {
               description={
                 loading
                   ? 'Loading…'
-                  : `${urgentFiltered.length} response${urgentFiltered.length === 1 ? '' : 's'} left contact details — reach out as soon as possible.`
+                  : `${urgentFiltered.length} negative response${urgentFiltered.length === 1 ? '' : 's'} with contact details — reach out as soon as possible.`
               }
               error={error}
               loading={loading}
               rows={visibleRows}
-              totalCount={responses.filter((r) => r.contactPhone || r.contactEmail).length}
-              emptyFilteredMessage="No follow-up contacts match these filters."
-              emptyAllMessage="No patients have shared contact details yet."
+              totalCount={
+                responses.filter(
+                  (r) =>
+                    (!!r.contactPhone || !!r.contactEmail) && hasNegativeReview(r.answersByQuestionId)
+                ).length
+              }
+              emptyFilteredMessage="No urgent follow-ups match these filters."
+              emptyAllMessage="No negative reviews with contact details yet."
               filterQuestions={filterQuestions}
               deletingId={deletingId}
               onDelete={setPendingDelete}

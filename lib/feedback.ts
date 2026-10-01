@@ -89,6 +89,28 @@ export function shortRecommend(value: string) {
   return value
 }
 
+/** True when an answer indicates dissatisfaction worth urgent follow-up. */
+export function isNegativeAnswer(value: string | undefined) {
+  if (!value) return false
+  const normalized = value.trim().toLowerCase()
+  const score = scoreForCare(value)
+  if (score > 0 && score <= 2) return true
+
+  const wait = shortWait(value).toLowerCase()
+  if (wait === 'long' || wait === 'very long') return true
+  if (normalized.includes('more than 2 hours')) return true
+
+  const recommend = shortRecommend(value).toLowerCase()
+  if (recommend === 'probably not' || recommend === 'definitely not') return true
+  if (normalized.includes('probably not') || normalized.includes('definitely not')) return true
+
+  return false
+}
+
+export function hasNegativeReview(answersByQuestionId: Record<string, string>) {
+  return Object.values(answersByQuestionId).some((value) => isNegativeAnswer(value))
+}
+
 export function defaultOptionsForType(type: QuestionRow['question_type']): QuestionOption[] {
   if (type === 'rating') {
     return [
