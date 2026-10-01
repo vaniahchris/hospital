@@ -296,39 +296,49 @@ function AccountSettingsDialog({
     setLoading(true);
     const supabase = createClient();
 
-    const { error: verifyError } = await supabase.auth.signInWithPassword({
-      email,
-      password: currentPassword,
+    const { data, error: invokeError } = await supabase.functions.invoke<{
+      error?: string;
+      email?: string;
+      passwordUpdated?: boolean;
+      emailUpdated?: boolean;
+    }>('admin-account', {
+      body: {
+        currentPassword,
+        email: emailChanged ? trimmedEmail : undefined,
+        password: passwordChanged ? newPassword : undefined,
+      },
     });
 
-    if (verifyError) {
-      setLoading(false);
-      setError('Current password is incorrect.');
+    setLoading(false);
+
+    if (invokeError) {
+      let message = invokeError.message || 'Could not update account settings.';
+      try {
+        const context = invokeError as { context?: Response };
+        if (context.context) {
+          const payload = (await context.context.json()) as { error?: string };
+          if (payload?.error) message = payload.error;
+        }
+      } catch {
+        if (typeof data?.error === 'string') message = data.error;
+      }
+      setError(message);
       return;
     }
 
-    const updates: { email?: string; password?: string } = {};
-    if (emailChanged) updates.email = trimmedEmail;
-    if (passwordChanged) updates.password = newPassword;
-
-    const { error: updateError } = await supabase.auth.updateUser(updates);
-    setLoading(false);
-
-    if (updateError) {
-      setError(updateError.message);
+    if (data?.error) {
+      setError(data.error);
       return;
     }
 
     const messages: string[] = [];
-    if (passwordChanged) messages.push('Password updated.');
-    if (emailChanged) {
-      messages.push(
-        'Email update started. Check the new inbox to confirm before it fully switches.'
-      );
-      onEmailUpdated(trimmedEmail);
+    if (data?.passwordUpdated) messages.push('Password updated.');
+    if (data?.emailUpdated) {
+      messages.push('Email updated.');
+      onEmailUpdated(data.email ?? trimmedEmail);
     }
 
-    setSuccess(messages.join(' '));
+    setSuccess(messages.join(' ') || 'Account updated.');
     setCurrentPassword('');
     setNewPassword('');
     setConfirmPassword('');
@@ -346,7 +356,8 @@ function AccountSettingsDialog({
         <DialogHeader>
           <DialogTitle>Account settings</DialogTitle>
           <DialogDescription>
-            Change your sign-in email and/or password. Current password is required.
+            Change your sign-in email and/or password. Changes apply immediately. Current password is
+            required.
           </DialogDescription>
         </DialogHeader>
         <form className="grid gap-4" onSubmit={submit}>
