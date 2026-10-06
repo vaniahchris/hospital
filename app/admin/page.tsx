@@ -24,6 +24,7 @@ type AnswerJoin = {
 
 type SubmissionJoin = {
   id: string;
+  source: 'outpatient' | 'inpatient';
   created_at: string;
   answers: AnswerJoin[];
 };
@@ -106,6 +107,7 @@ function buildQuestionStats(question: QuestionRow, values: string[]): QuestionSt
 
 export default function AdminOverview() {
   const [total, setTotal] = useState(0);
+  const [inpatientCount, setInpatientCount] = useState(0);
   const [monthCount, setMonthCount] = useState(0);
   const [average, setAverage] = useState(0);
   const [recommendPct, setRecommendPct] = useState(0);
@@ -124,7 +126,7 @@ export default function AdminOverview() {
         supabase
           .from('submissions')
           .select(
-            'id, created_at, answers(value, question_id, question:questions(id, sort_order, question_type, prompt))'
+            'id, source, created_at, answers(value, question_id, question:questions(id, sort_order, question_type, prompt))'
           )
           .order('created_at', { ascending: false }),
       ]);
@@ -133,6 +135,7 @@ export default function AdminOverview() {
         (question) => question.question_type === 'rating' || question.question_type === 'choice'
       );
       const rows = (submissionsResult.data as unknown as SubmissionJoin[]) ?? [];
+      const outpatientRows = rows.filter((row) => row.source !== 'inpatient');
       const now = new Date();
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
@@ -142,7 +145,7 @@ export default function AdminOverview() {
       let recommendYes = 0;
       let recommendTotal = 0;
 
-      for (const row of rows) {
+      for (const row of outpatientRows) {
         for (const answer of row.answers ?? []) {
           const questionId = answer.question_id || answer.question?.id;
           if (!questionId || !answer.value) continue;
@@ -174,8 +177,9 @@ export default function AdminOverview() {
           )
         : firstRating?.average ?? 0;
 
-      setTotal(rows.length);
-      setMonthCount(rows.filter((r) => new Date(r.created_at) >= monthStart).length);
+      setTotal(outpatientRows.length);
+      setInpatientCount(rows.filter((row) => row.source === 'inpatient').length);
+      setMonthCount(outpatientRows.filter((r) => new Date(r.created_at) >= monthStart).length);
       setAverage(overallAverage);
       setRecommendPct(recommendTotal ? Math.round((recommendYes / recommendTotal) * 100) : 0);
       setQuestionStats(stats);
@@ -187,12 +191,13 @@ export default function AdminOverview() {
   const metrics = useMemo(
     () =>
       [
-        ['responses', 'Total responses', String(total), 'All time'],
+        ['responses', 'Outpatient responses', String(total), 'All time'],
+        ['responses', 'Inpatient responses', String(inpatientCount), 'All time'],
         ['people', 'This month', String(monthCount), nowMonthLabel()],
         ['dashboard', 'Avg rating', average ? average.toFixed(1) : '—', 'Across rating questions'],
         ['questions', 'Recommend us', total ? `${recommendPct}%` : '—', 'Yes answers'],
       ] as const,
-    [total, monthCount, average, recommendPct]
+    [total, inpatientCount, monthCount, average, recommendPct]
   );
 
   return (

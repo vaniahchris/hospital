@@ -60,6 +60,8 @@ type AnswerJoin = {
 
 type SubmissionJoin = {
   id: string;
+  source: 'outpatient' | 'inpatient';
+  inpatient_answers: Record<string, string> | null;
   comment: string | null;
   contact_email: string | null;
   contact_phone: string | null;
@@ -69,6 +71,8 @@ type SubmissionJoin = {
 
 type AdminResponse = {
   submissionId: string;
+  source: 'outpatient' | 'inpatient';
+  inpatientAnswers: Record<string, string>;
   createdAt: string;
   id: string;
   date: string;
@@ -79,6 +83,12 @@ type AdminResponse = {
 };
 
 const ALL = 'all';
+const inpatientQuestions = [
+  { id: 'care', prompt: 'Quality of care' },
+  { id: 'staff', prompt: 'Staff' },
+  { id: 'room', prompt: 'Room' },
+  { id: 'recommend', prompt: 'Recommend' },
+];
 const SEEN_URGENT_KEY = 'admin-seen-urgent-ids';
 
 function readSeenUrgentIds() {
@@ -121,6 +131,8 @@ function mapSubmission(row: SubmissionJoin, index: number, total: number): Admin
 
   return {
     submissionId: row.id,
+    source: row.source ?? 'outpatient',
+    inpatientAnswers: row.inpatient_answers ?? {},
     createdAt: row.created_at,
     id: `FB-${1000 + (total - index)}`,
     date: formatResponseDate(row.created_at),
@@ -158,6 +170,7 @@ function formatRangeLabel(startDate: string, endDate: string) {
 }
 
 function scoreForResponse(row: AdminResponse, questions: QuestionRow[]) {
+  if (row.source === 'inpatient') return scoreForCare(row.inpatientAnswers.care);
   const rating = questions.find((q) => q.question_type === 'rating');
   if (!rating) return 0;
   return scoreForCare(row.answersByQuestionId[rating.id]);
@@ -175,6 +188,7 @@ export default function Responses() {
   const [endDate, setEndDate] = useState('');
   const [questionFilters, setQuestionFilters] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState('all');
+  const [source, setSource] = useState<'outpatient' | 'inpatient'>('outpatient');
   const [seenUrgentIds, setSeenUrgentIds] = useState<string[]>([]);
 
   useEffect(() => {
@@ -196,7 +210,7 @@ export default function Responses() {
       supabase
         .from('submissions')
         .select(
-          'id, comment, contact_email, contact_phone, created_at, answers(value, question_id, question:questions(id, sort_order, question_type, prompt))'
+          'id, source, inpatient_answers, comment, contact_email, contact_phone, created_at, answers(value, question_id, question:questions(id, sort_order, question_type, prompt))'
         )
         .order('created_at', { ascending: false }),
     ]);
@@ -236,21 +250,25 @@ export default function Responses() {
   const filtered = useMemo(
     () =>
       responses.filter((row) => {
+        if (row.source !== source) return false;
         if (!matchesDateRange(row.createdAt, startDate, endDate)) return false;
-        return filterQuestions.every((question) => {
+        return source === 'inpatient' || filterQuestions.every((question) => {
           const selected = questionFilters[question.id] ?? ALL;
           if (selected === ALL) return true;
           return row.answersByQuestionId[question.id] === selected;
         });
       }),
-    [responses, startDate, endDate, filterQuestions, questionFilters]
+    [responses, source, startDate, endDate, filterQuestions, questionFilters]
   );
 
   const urgentFiltered = useMemo(
     () =>
       filtered.filter(
         (row) =>
-          (!!row.contactPhone || !!row.contactEmail) && hasNegativeReview(row.answersByQuestionId)
+          (!!row.contactPhone || !!row.contactEmail) &&
+          (row.source === 'inpatient'
+            ? hasNegativeReview(row.inpatientAnswers) || ['Unlikely', 'Very Unlikely'].includes(row.inpatientAnswers.recommend)
+            : hasNegativeReview(row.answersByQuestionId))
       ),
     [filtered]
   );
@@ -276,7 +294,15 @@ export default function Responses() {
   const filtersActive =
     !!startDate ||
     !!endDate ||
-    Object.values(questionFilters).some((value) => value !== ALL);
+    (source === 'outpatient' && Object.values(questionFilters).some((value) => value !== ALL));
+
+  const sourceCount = responses.filter((row) => row.source === source).length;
+  const columnHeaders = source === 'inpatient'
+    ? inpatientQuestions.map((question) => question.prompt)
+    : filterQuestions.map((question) => shortPrompt(question.prompt));
+  const answerCells = (row: AdminResponse) => source === 'inpatient'
+    ? inpatientQuestions.map((question) => row.inpatientAnswers[question.id] ?? '')
+    : filterQuestions.map((question) => row.answersByQuestionId[question.id] ?? '');
 
   function clearFilters() {
     setStartDate('');
@@ -295,13 +321,9 @@ export default function Responses() {
   }
 
   function exportCsv() {
-    const questionHeaders = filterQuestions.map((q) => shortPrompt(q.prompt));
-    const header = ['ID', 'Date', ...questionHeaders, 'Score', 'Comment', 'Phone', 'Email'].join(',');
+    const header = ['ID', 'Date', ...columnHeaders, 'Score', 'Comment', 'Phone', 'Email'].join(',');
     const rows = visibleRows.map((r) => {
-      const answers = filterQuestions.map((q) => {
-        const value = r.answersByQuestionId[q.id] ?? '';
-        return `"${value.replaceAll('"', '""')}"`;
-      });
+      const answers = answerCells(r).map((value) => `"${value.replaceAll('"', '""')}"`);
       return [
         r.id,
         r.date,
@@ -316,8 +338,7 @@ export default function Responses() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download =
-      activeTab === 'urgent' ? 'feedback-follow-up.csv' : 'feedback-responses.csv';
+    a.download = `feedback-${source}-${activeTab === 'urgent' ? 'follow-up' : 'responses'}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -325,11 +346,11 @@ export default function Responses() {
   function exportPdf() {
     const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
     const generatedAt = new Date().toLocaleString();
-    const questionHeaders = filterQuestions.map((q) => shortPrompt(q.prompt));
+    const questionHeaders = columnHeaders;
     const title =
       activeTab === 'urgent'
-        ? 'Value Family Hospital — Urgent Follow-up'
-        : 'Value Family Hospital — Patient Responses';
+        ? `Value Family Hospital — ${source} follow-up`
+        : `Value Family Hospital — ${source} responses`;
 
     doc.setFontSize(16);
     doc.text(title, 40, 36);
@@ -345,7 +366,7 @@ export default function Responses() {
       body: visibleRows.map((r) => [
         r.id,
         r.date,
-        ...filterQuestions.map((q) => r.answersByQuestionId[q.id] ?? '—'),
+        ...answerCells(r).map((answer) => answer || '—'),
         String(scoreForResponse(r, filterQuestions) || '—'),
         r.comment || '—',
         r.contactPhone || '—',
@@ -356,7 +377,7 @@ export default function Responses() {
       margin: { left: 40, right: 40 },
     });
 
-    doc.save(activeTab === 'urgent' ? 'feedback-follow-up.pdf' : 'feedback-responses.pdf');
+    doc.save(`feedback-${source}-${activeTab === 'urgent' ? 'follow-up' : 'responses'}.pdf`);
   }
 
   async function confirmDelete() {
@@ -416,12 +437,19 @@ export default function Responses() {
           </div>
         </div>
 
+        <Tabs value={source} onValueChange={(value) => { setSource(value as 'outpatient' | 'inpatient'); setActiveTab('all'); }}>
+          <TabsList>
+            <TabsTrigger value="outpatient">Outpatients</TabsTrigger>
+            <TabsTrigger value="inpatient">Inpatients</TabsTrigger>
+          </TabsList>
+        </Tabs>
+
         <Card>
           <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
             <div>
               <CardTitle>Filters</CardTitle>
               <CardDescription>
-                Date range and active questions. Filters update when questions change.
+                {source === 'inpatient' ? 'Filter inpatient responses by date.' : 'Date range and active questions. Filters update when questions change.'}
               </CardDescription>
             </div>
             {filtersActive ? (
@@ -453,7 +481,7 @@ export default function Responses() {
                   onChange={(e) => setEndDate(e.target.value)}
                 />
               </div>
-              {filterQuestions.map((question) => (
+              {source === 'outpatient' && filterQuestions.map((question) => (
                 <FilterSelect
                   key={question.id}
                   id={`filter-${question.id}`}
@@ -489,14 +517,15 @@ export default function Responses() {
               description={
                 loading
                   ? 'Loading…'
-                  : `Showing ${visibleRows.length} of ${responses.length} response${responses.length === 1 ? '' : 's'}`
+                  : `Showing ${visibleRows.length} of ${sourceCount} response${sourceCount === 1 ? '' : 's'}`
               }
               error={error}
               loading={loading}
               rows={visibleRows}
-              totalCount={responses.length}
+              totalCount={sourceCount}
               emptyFilteredMessage="No responses match these filters."
               filterQuestions={filterQuestions}
+              source={source}
               deletingId={deletingId}
               onDelete={setPendingDelete}
             />
@@ -516,12 +545,16 @@ export default function Responses() {
               totalCount={
                 responses.filter(
                   (r) =>
-                    (!!r.contactPhone || !!r.contactEmail) && hasNegativeReview(r.answersByQuestionId)
+                    r.source === source && (!!r.contactPhone || !!r.contactEmail) &&
+                    (source === 'inpatient'
+                      ? hasNegativeReview(r.inpatientAnswers) || ['Unlikely', 'Very Unlikely'].includes(r.inpatientAnswers.recommend)
+                      : hasNegativeReview(r.answersByQuestionId))
                 ).length
               }
               emptyFilteredMessage="No urgent follow-ups match these filters."
               emptyAllMessage="No negative reviews with contact details yet."
               filterQuestions={filterQuestions}
+              source={source}
               deletingId={deletingId}
               onDelete={setPendingDelete}
               urgent
@@ -574,6 +607,7 @@ function ResponseTableCard({
   emptyFilteredMessage,
   emptyAllMessage = 'No responses yet.',
   filterQuestions,
+  source,
   deletingId,
   onDelete,
   urgent = false,
@@ -587,6 +621,7 @@ function ResponseTableCard({
   emptyFilteredMessage: string;
   emptyAllMessage?: string;
   filterQuestions: QuestionRow[];
+  source: 'outpatient' | 'inpatient';
   deletingId: string | null;
   onDelete: (row: AdminResponse) => void;
   urgent?: boolean;
@@ -611,11 +646,13 @@ function ResponseTableCard({
             <TableRow>
               <TableHead>Response</TableHead>
               <TableHead>Date</TableHead>
-              {filterQuestions.map((question) => (
-                <TableHead key={question.id} title={question.prompt}>
-                  {shortPrompt(question.prompt)}
-                </TableHead>
-              ))}
+              {source === 'inpatient'
+                ? inpatientQuestions.map((question) => <TableHead key={question.id}>{question.prompt}</TableHead>)
+                : filterQuestions.map((question) => (
+                    <TableHead key={question.id} title={question.prompt}>
+                      {shortPrompt(question.prompt)}
+                    </TableHead>
+                  ))}
               <TableHead>Score</TableHead>
               <TableHead>Comment</TableHead>
               <TableHead>Phone</TableHead>
@@ -630,11 +667,15 @@ function ResponseTableCard({
                 <TableRow key={row.submissionId} className={urgent ? 'bg-destructive/5' : undefined}>
                   <TableCell className="font-semibold">{row.id}</TableCell>
                   <TableCell>{row.date}</TableCell>
-                  {filterQuestions.map((question) => (
-                    <TableCell key={question.id}>
-                      {row.answersByQuestionId[question.id] ?? '—'}
-                    </TableCell>
-                  ))}
+                  {source === 'inpatient'
+                    ? inpatientQuestions.map((question) => (
+                        <TableCell key={question.id}>{row.inpatientAnswers[question.id] || '—'}</TableCell>
+                      ))
+                    : filterQuestions.map((question) => (
+                        <TableCell key={question.id}>
+                          {row.answersByQuestionId[question.id] ?? '—'}
+                        </TableCell>
+                      ))}
                   <TableCell>
                     {score ? (
                       <Badge
