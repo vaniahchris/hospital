@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Download, FileText, PhoneCall, Trash2, X } from 'lucide-react';
+import { BedDouble, Download, FileText, PhoneCall, Trash2, Users, X } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { AdminShell } from '../shared';
@@ -296,7 +296,10 @@ export default function Responses() {
     !!endDate ||
     (source === 'outpatient' && Object.values(questionFilters).some((value) => value !== ALL));
 
-  const sourceCount = responses.filter((row) => row.source === source).length;
+  const outpatientCount = responses.filter((row) => row.source === 'outpatient').length;
+  const inpatientCount = responses.filter((row) => row.source === 'inpatient').length;
+  const sourceCount = source === 'inpatient' ? inpatientCount : outpatientCount;
+  const urgentCount = urgentFiltered.length;
   const columnHeaders = source === 'inpatient'
     ? inpatientQuestions.map((question) => question.prompt)
     : filterQuestions.map((question) => shortPrompt(question.prompt));
@@ -437,11 +440,47 @@ export default function Responses() {
           </div>
         </div>
 
-        <Tabs value={source} onValueChange={(value) => { setSource(value as 'outpatient' | 'inpatient'); setActiveTab('all'); }}>
-          <TabsList>
-            <TabsTrigger value="outpatient">Outpatients</TabsTrigger>
-            <TabsTrigger value="inpatient">Inpatients</TabsTrigger>
-          </TabsList>
+        <Tabs
+          value={source}
+          onValueChange={(value) => {
+            setSource(value as 'outpatient' | 'inpatient');
+            setActiveTab('all');
+          }}
+          className="gap-3"
+        >
+          <div className="space-y-2">
+            <p className="text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase">
+              Patient type
+            </p>
+            <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-xl border bg-card p-1.5 shadow-sm sm:max-w-xl">
+              <TabsTrigger
+                value="outpatient"
+                className="group h-12 gap-2 rounded-lg px-3 text-sm font-semibold text-foreground/70 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+              >
+                <Users className="size-4" />
+                Outpatients
+                <Badge
+                  variant="secondary"
+                  className="ml-0.5 h-5 min-w-5 justify-center rounded-full px-1.5 text-[11px] group-data-[state=active]:border-transparent group-data-[state=active]:bg-primary-foreground/20 group-data-[state=active]:text-primary-foreground"
+                >
+                  {outpatientCount}
+                </Badge>
+              </TabsTrigger>
+              <TabsTrigger
+                value="inpatient"
+                className="group h-12 gap-2 rounded-lg px-3 text-sm font-semibold text-foreground/70 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+              >
+                <BedDouble className="size-4" />
+                Inpatients
+                <Badge
+                  variant="secondary"
+                  className="ml-0.5 h-5 min-w-5 justify-center rounded-full px-1.5 text-[11px] group-data-[state=active]:border-transparent group-data-[state=active]:bg-primary-foreground/20 group-data-[state=active]:text-primary-foreground"
+                >
+                  {inpatientCount}
+                </Badge>
+              </TabsTrigger>
+            </TabsList>
+          </div>
         </Tabs>
 
         <Card>
@@ -449,7 +488,9 @@ export default function Responses() {
             <div>
               <CardTitle>Filters</CardTitle>
               <CardDescription>
-                {source === 'inpatient' ? 'Filter inpatient responses by date.' : 'Date range and active questions. Filters update when questions change.'}
+                {source === 'inpatient'
+                  ? 'Filter inpatient responses by date.'
+                  : 'Date range and active questions. Filters update when questions change.'}
               </CardDescription>
             </div>
             {filtersActive ? (
@@ -481,35 +522,61 @@ export default function Responses() {
                   onChange={(e) => setEndDate(e.target.value)}
                 />
               </div>
-              {source === 'outpatient' && filterQuestions.map((question) => (
-                <FilterSelect
-                  key={question.id}
-                  id={`filter-${question.id}`}
-                  label={shortPrompt(question.prompt)}
-                  value={questionFilters[question.id] ?? ALL}
-                  onChange={(value) =>
-                    setQuestionFilters((prev) => ({ ...prev, [question.id]: value }))
-                  }
-                  options={optionsForQuestion(question)}
-                />
-              ))}
+              {source === 'outpatient' &&
+                filterQuestions.map((question) => (
+                  <FilterSelect
+                    key={question.id}
+                    id={`filter-${question.id}`}
+                    label={shortPrompt(question.prompt)}
+                    value={questionFilters[question.id] ?? ALL}
+                    onChange={(value) =>
+                      setQuestionFilters((prev) => ({ ...prev, [question.id]: value }))
+                    }
+                    options={optionsForQuestion(question)}
+                  />
+                ))}
             </div>
           </CardContent>
         </Card>
 
-        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value ?? 'all')}>
-          <TabsList>
-            <TabsTrigger value="all">All responses</TabsTrigger>
-            <TabsTrigger value="urgent" className="gap-2">
-              <PhoneCall className="size-3.5" />
-              Needs follow-up
-              {unseenUrgentCount > 0 ? (
-                <Badge className="h-5 min-w-5 rounded-full bg-destructive px-1.5 text-[10px] text-white">
-                  {unseenUrgentCount}
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value ?? 'all')} className="gap-3">
+          <div className="space-y-2">
+            <p className="text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase">
+              Response view
+            </p>
+            <TabsList className="grid h-auto w-full grid-cols-1 gap-1 rounded-xl border bg-card p-1.5 shadow-sm sm:max-w-xl sm:grid-cols-2">
+              <TabsTrigger
+                value="all"
+                className="group h-12 gap-2 rounded-lg px-3 text-sm font-semibold text-foreground/70 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+              >
+                All responses
+                <Badge
+                  variant="secondary"
+                  className="h-5 min-w-5 justify-center rounded-full px-1.5 text-[11px] group-data-[state=active]:border-transparent group-data-[state=active]:bg-primary-foreground/20 group-data-[state=active]:text-primary-foreground"
+                >
+                  {filtered.length}
                 </Badge>
-              ) : null}
-            </TabsTrigger>
-          </TabsList>
+              </TabsTrigger>
+              <TabsTrigger
+                value="urgent"
+                className="h-12 gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 text-sm font-semibold text-amber-900 hover:bg-amber-100 data-[state=active]:border-amber-600 data-[state=active]:bg-amber-600 data-[state=active]:text-white data-[state=active]:shadow-sm data-[state=active]:hover:bg-amber-600"
+              >
+                <PhoneCall className="size-4" />
+                Needs follow-up
+                <Badge
+                  className={`h-5 min-w-5 justify-center rounded-full border-transparent px-1.5 text-[11px] ${
+                    activeTab === 'urgent'
+                      ? 'bg-white/20 text-white'
+                      : unseenUrgentCount > 0
+                        ? 'bg-destructive text-white'
+                        : 'bg-amber-200 text-amber-950'
+                  }`}
+                >
+                  {unseenUrgentCount > 0 ? unseenUrgentCount : urgentCount}
+                </Badge>
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="all" className="mt-4">
             <ResponseTableCard
