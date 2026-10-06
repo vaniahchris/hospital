@@ -801,7 +801,7 @@ function ResponseTableCard({
                       '—'
                     )}
                   </TableCell>
-                  <TableCell className="max-w-[180px] truncate" title={row.comment}>
+                  <TableCell className="min-w-[220px] max-w-[320px] whitespace-normal break-words text-sm leading-relaxed">
                     {row.comment || '—'}
                   </TableCell>
                   <TableCell className="max-w-[140px] truncate font-medium" title={row.contactPhone}>
