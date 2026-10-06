@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { BedDouble, Download, FileText, PhoneCall, Trash2, Users, X } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -14,6 +14,7 @@ import {
   shortWait,
   type QuestionRow,
 } from '@/lib/feedback';
+import { cn } from '@/lib/utils';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -45,7 +46,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
 
 type AnswerJoin = {
   value: string;
@@ -167,6 +168,85 @@ function formatRangeLabel(startDate: string, endDate: string) {
   if (startDate) return `From ${startDate}`;
   if (endDate) return `Through ${endDate}`;
   return 'All dates';
+}
+
+function SegmentCount({
+  value,
+  active,
+  alert = false,
+}: {
+  value: number;
+  active: boolean;
+  alert?: boolean;
+}) {
+  return (
+    <span
+      className={cn(
+        'inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold tabular-nums',
+        active
+          ? 'bg-primary-foreground/20 text-primary-foreground'
+          : alert && value > 0
+            ? 'bg-destructive text-white'
+            : 'bg-background text-muted-foreground'
+      )}
+    >
+      {value}
+    </span>
+  );
+}
+
+type SegmentOption = {
+  value: string;
+  label: string;
+  icon?: ReactNode;
+  count: number;
+  alert?: boolean;
+};
+
+function SegmentedControl({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: SegmentOption[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-medium tracking-[0.12em] text-muted-foreground uppercase">{label}</p>
+      <div
+        role="tablist"
+        aria-label={label}
+        className="grid h-10 w-full max-w-lg grid-cols-2 rounded-lg border border-border bg-muted p-1"
+      >
+        {options.map((option) => {
+          const active = option.value === value;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => onChange(option.value)}
+              className={cn(
+                'inline-flex h-full min-w-0 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors',
+                active
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {option.icon}
+              <span className="truncate">{option.label}</span>
+              <SegmentCount value={option.count} active={active} alert={option.alert} />
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 function scoreForResponse(row: AdminResponse, questions: QuestionRow[]) {
@@ -440,48 +520,28 @@ export default function Responses() {
           </div>
         </div>
 
-        <Tabs
+        <SegmentedControl
+          label="Patient type"
           value={source}
-          onValueChange={(value) => {
+          onChange={(value) => {
             setSource(value as 'outpatient' | 'inpatient');
             setActiveTab('all');
           }}
-          className="gap-3"
-        >
-          <div className="space-y-2">
-            <p className="text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase">
-              Patient type
-            </p>
-            <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-xl border bg-card p-1.5 shadow-sm sm:max-w-xl">
-              <TabsTrigger
-                value="outpatient"
-                className="group h-12 gap-2 rounded-lg px-3 text-sm font-semibold text-foreground/70 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
-              >
-                <Users className="size-4" />
-                Outpatients
-                <Badge
-                  variant="secondary"
-                  className="ml-0.5 h-5 min-w-5 justify-center rounded-full px-1.5 text-[11px] group-data-[state=active]:border-transparent group-data-[state=active]:bg-primary-foreground/20 group-data-[state=active]:text-primary-foreground"
-                >
-                  {outpatientCount}
-                </Badge>
-              </TabsTrigger>
-              <TabsTrigger
-                value="inpatient"
-                className="group h-12 gap-2 rounded-lg px-3 text-sm font-semibold text-foreground/70 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
-              >
-                <BedDouble className="size-4" />
-                Inpatients
-                <Badge
-                  variant="secondary"
-                  className="ml-0.5 h-5 min-w-5 justify-center rounded-full px-1.5 text-[11px] group-data-[state=active]:border-transparent group-data-[state=active]:bg-primary-foreground/20 group-data-[state=active]:text-primary-foreground"
-                >
-                  {inpatientCount}
-                </Badge>
-              </TabsTrigger>
-            </TabsList>
-          </div>
-        </Tabs>
+          options={[
+            {
+              value: 'outpatient',
+              label: 'Outpatients',
+              icon: <Users className="size-4 shrink-0" />,
+              count: outpatientCount,
+            },
+            {
+              value: 'inpatient',
+              label: 'Inpatients',
+              icon: <BedDouble className="size-4 shrink-0" />,
+              count: inpatientCount,
+            },
+          ]}
+        />
 
         <Card>
           <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
@@ -539,44 +599,26 @@ export default function Responses() {
           </CardContent>
         </Card>
 
-        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value ?? 'all')} className="gap-3">
-          <div className="space-y-2">
-            <p className="text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase">
-              Response view
-            </p>
-            <TabsList className="grid h-auto w-full grid-cols-1 gap-1 rounded-xl border bg-card p-1.5 shadow-sm sm:max-w-xl sm:grid-cols-2">
-              <TabsTrigger
-                value="all"
-                className="group h-12 gap-2 rounded-lg px-3 text-sm font-semibold text-foreground/70 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
-              >
-                All responses
-                <Badge
-                  variant="secondary"
-                  className="h-5 min-w-5 justify-center rounded-full px-1.5 text-[11px] group-data-[state=active]:border-transparent group-data-[state=active]:bg-primary-foreground/20 group-data-[state=active]:text-primary-foreground"
-                >
-                  {filtered.length}
-                </Badge>
-              </TabsTrigger>
-              <TabsTrigger
-                value="urgent"
-                className="h-12 gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 text-sm font-semibold text-amber-900 hover:bg-amber-100 data-[state=active]:border-amber-600 data-[state=active]:bg-amber-600 data-[state=active]:text-white data-[state=active]:shadow-sm data-[state=active]:hover:bg-amber-600"
-              >
-                <PhoneCall className="size-4" />
-                Needs follow-up
-                <Badge
-                  className={`h-5 min-w-5 justify-center rounded-full border-transparent px-1.5 text-[11px] ${
-                    activeTab === 'urgent'
-                      ? 'bg-white/20 text-white'
-                      : unseenUrgentCount > 0
-                        ? 'bg-destructive text-white'
-                        : 'bg-amber-200 text-amber-950'
-                  }`}
-                >
-                  {unseenUrgentCount > 0 ? unseenUrgentCount : urgentCount}
-                </Badge>
-              </TabsTrigger>
-            </TabsList>
-          </div>
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value ?? 'all')} className="gap-4">
+          <SegmentedControl
+            label="Response view"
+            value={activeTab}
+            onChange={setActiveTab}
+            options={[
+              {
+                value: 'all',
+                label: 'All responses',
+                count: filtered.length,
+              },
+              {
+                value: 'urgent',
+                label: 'Needs follow-up',
+                icon: <PhoneCall className="size-4 shrink-0" />,
+                count: unseenUrgentCount > 0 ? unseenUrgentCount : urgentCount,
+                alert: true,
+              },
+            ]}
+          />
 
           <TabsContent value="all" className="mt-4">
             <ResponseTableCard
