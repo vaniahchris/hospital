@@ -1,396 +1,59 @@
-'use client';
+import { ArrowRight, BedDouble, Stethoscope } from 'lucide-react';
 
-import { FormEvent, useEffect, useRef, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import type { QuestionRow } from '@/lib/feedback';
-import { Skeleton } from '@/components/ui/skeleton';
-import './feedback-form.css';
-
-function Icon({ name, className = '' }: { name: string; className?: string }) {
-  return (
-    <svg className={className} width="28" height="28" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      {name === 'arrow' ? (
-        <path d="M6 16h20m-7-7 7 7-7 7" />
-      ) : name === 'back' ? (
-        <path d="m20 7-9 9 9 9" />
-      ) : name === 'lock' ? (
-        <><rect x="8" y="14" width="16" height="14" rx="2" /><path d="M11 14V9a5 5 0 0 1 10 0v5m-5 5v4" /></>
-      ) : name === 'heart' ? (
-        <path fill="currentColor" strokeWidth="0" d="M16 28 4 16C-5 6 9-2 16 7 23-2 37 6 28 16Z" />
-      ) : name === 'clock' ? (
-        <><circle cx="16" cy="16" r="13" /><path d="M16 7v9l7 4" /></>
-      ) : name === 'up' || name === 'down' ? (
-        <g transform={name === 'down' ? 'rotate(180 16 16)' : undefined}>
-          <path d="M10 27H5V13h5m0 14h13a3 3 0 0 0 3-2l3-11a2 2 0 0 0-2-3h-8l1-6c0-3-4-4-5-1l-5 9v14Z" />
-        </g>
-      ) : (
-        <>
-          <circle cx="16" cy="16" r="13" />
-          <circle cx="11" cy="12" r="1" fill="currentColor" />
-          <circle cx="21" cy="12" r="1" fill="currentColor" />
-          {name === 'fair' || name === 'poor' ? <path d="M10 23q6-7 12 0" /> : <path d="M9 19q7 9 14 0" />}
-        </>
-      )}
-    </svg>
-  );
-}
-
-const emojiByName: Record<string, string> = {
-  excellent: '🤩',
-  veryGood: '😀',
-  good: '🙂',
-  fair: '😐',
-  poor: '😞',
-  clock: '🕐',
-  waitOk: '⏱️',
-  waitLong: '🕒',
-  waitVeryLong: '⌛',
-  definitely: '👍',
-  probably: '👌',
-  unsure: '🤔',
-  probablyNot: '👎',
-  definitelyNot: '🙅',
-};
-
-function AnswerEmoji({ name }: { name: string }) {
-  return <span className="answer-emoji" aria-hidden="true">{emojiByName[name] ?? '•'}</span>;
-}
-
-function Brand() {
-  return (
-    <div className="brand">
-      <img src="/value-family-hospital-logo.png" alt="Value Family Hospital logo" />
-      <div>
-        <strong>Value Family <span>Hospital</span></strong>
-        <small>Kitende · Service with a difference</small>
-      </div>
-    </div>
-  );
-}
+const forms = [
+  {
+    href: '/outpatient',
+    title: 'Outpatient',
+    description: 'You came for a visit or treatment and went home the same day.',
+    icon: Stethoscope,
+  },
+  {
+    href: '/inpatient',
+    title: 'Inpatient',
+    description: 'You were admitted and stayed with us overnight or longer.',
+    icon: BedDouble,
+  },
+];
 
 export default function Home() {
-  const [step, setStep] = useState(1);
-  const [choiceQuestions, setChoiceQuestions] = useState<QuestionRow[]>([]);
-  const [textQuestion, setTextQuestion] = useState<QuestionRow | null>(null);
-  const [answers, setAnswers] = useState<(string | null)[]>([]);
-  const [comments, setComments] = useState('');
-  const [contactEmail, setContactEmail] = useState('');
-  const [contactPhone, setContactPhone] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState('');
-  const heading = useRef<HTMLHeadingElement>(null);
-  const mounted = useRef(false);
-
-  const totalSteps = choiceQuestions.length + 1;
-  const successStep = totalSteps + 1;
-  const isCommentStep = step === totalSteps;
-  const question = choiceQuestions[step - 1];
-
-  useEffect(() => {
-    const supabase = createClient();
-    async function load() {
-      const { data, error } = await supabase
-        .from('questions')
-        .select('*')
-        .eq('is_active', true)
-        .order('sort_order', { ascending: true });
-
-      if (error || !data?.length) {
-        setLoading(false);
-        return;
-      }
-
-      const rows = data as QuestionRow[];
-      const choices = rows.filter((q) => q.question_type !== 'text');
-      const text = rows.find((q) => q.question_type === 'text') ?? null;
-      setChoiceQuestions(choices);
-      setTextQuestion(text);
-      setAnswers(choices.map(() => null));
-      setLoading(false);
-    }
-    load();
-  }, []);
-
-  useEffect(() => {
-    if (mounted.current) heading.current?.focus();
-    mounted.current = true;
-  }, [step]);
-
-  function restart() {
-    setAnswers(choiceQuestions.map(() => null));
-    setComments('');
-    setContactEmail('');
-    setContactPhone('');
-    setSubmitError('');
-    setStep(1);
-  }
-
-  async function completeFeedback() {
-    setSubmitting(true);
-    setSubmitError('');
-    const supabase = createClient();
-    const submissionId = crypto.randomUUID();
-    const email = contactEmail.trim();
-    const phone = contactPhone.trim();
-
-    const { error: submissionError } = await supabase.from('submissions').insert({
-      id: submissionId,
-      comment: comments.trim() || null,
-      contact_email: email || null,
-      contact_phone: phone || null,
-    });
-
-    if (submissionError) {
-      setSubmitting(false);
-      setSubmitError(submissionError.message);
-      return;
-    }
-
-    const rows = choiceQuestions
-      .map((q, index) => ({
-        submission_id: submissionId,
-        question_id: q.id,
-        value: answers[index] ?? '',
-      }))
-      .filter((row) => row.value);
-
-    if (textQuestion && comments.trim()) {
-      rows.push({
-        submission_id: submissionId,
-        question_id: textQuestion.id,
-        value: comments.trim(),
-      });
-    }
-
-    if (rows.length) {
-      const { error: answersError } = await supabase.from('answers').insert(rows);
-      if (answersError) {
-        setSubmitting(false);
-        setSubmitError(answersError.message);
-        return;
-      }
-    }
-
-    setSubmitting(false);
-    setStep(successStep);
-  }
-
-  async function onSubmit(event: FormEvent) {
-    event.preventDefault();
-    if (isCommentStep) {
-      await completeFeedback();
-      return;
-    }
-    if (answers[step - 1]) setStep(step + 1);
-  }
-
-  if (loading) {
-    return (
-      <main className="page">
-        <div className="app-shell">
-          <div className="desktop-brand">
-            <Brand />
-            <span className="care-label"><span /> Listening. Caring. Improving.</span>
-          </div>
-          <section className="feedback-card" aria-busy="true" aria-label="Loading feedback">
-            <div className="step-header">
-              <Skeleton className="h-4 w-24 rounded-full bg-[#e8f3fd]" />
-              <Skeleton className="h-4 w-14 rounded-full bg-[#e8f3fd]" />
-            </div>
-            <div className="progress" aria-hidden="true">
-              {Array.from({ length: 5 }, (_, i) => (
-                <Skeleton key={i} className="h-[9px] flex-1 rounded-full bg-[#e8f3fd]" />
-              ))}
-            </div>
-            <div className="question-skeleton">
-              <Skeleton className="mb-3 h-7 w-[92%] rounded-lg bg-[#e8f3fd]" />
-              <Skeleton className="mb-8 h-7 w-[70%] rounded-lg bg-[#e8f3fd]" />
-            </div>
-            <div className="option-skeleton-list" aria-hidden="true">
-              {Array.from({ length: 5 }, (_, i) => (
-                <div className="option-skeleton" key={i}>
-                  <Skeleton className="size-8 shrink-0 rounded-full bg-[#d7e6f5]" />
-                  <Skeleton className="h-4 flex-1 rounded-full bg-[#d7e6f5]" />
-                </div>
-              ))}
-            </div>
-            <Skeleton className="mt-9 h-[52px] w-full rounded-full bg-[#e8f3fd]" />
-            <Skeleton className="mx-auto mt-3 h-3 w-40 rounded-full bg-[#e8f3fd]" />
-          </section>
-          <footer>Value Family Hospital <span>•</span> Service with a difference</footer>
-        </div>
-      </main>
-    );
-  }
-
-  if (!choiceQuestions.length) {
-    return (
-      <main className="page">
-        <div className="app-shell">
-          <section className="feedback-card welcome" aria-label="No questions available">
-            <Brand />
-            <p>No feedback questions are available right now.</p>
-          </section>
-        </div>
-      </main>
-    );
-  }
-
   return (
-    <main className="page">
-      <div className="app-shell">
-        <div className="desktop-brand">
-          <Brand />
-          <span className="care-label"><span /> Listening. Caring. Improving.</span>
+    <main className="flex min-h-svh items-center justify-center bg-muted/40 px-5 py-12">
+      <div className="w-full max-w-md">
+        <div className="flex items-center gap-3">
+          <img
+            src="/value-family-hospital-logo.png"
+            alt="Value Family Hospital logo"
+            className="size-12 rounded-full object-cover ring-2 ring-white"
+          />
+          <div>
+            <p className="font-heading text-base font-extrabold text-primary">Value Family Hospital</p>
+            <p className="text-xs text-muted-foreground">Kitende · Service with a difference</p>
+          </div>
         </div>
-        <section
-          className={`feedback-card ${step >= totalSteps ? 'closing-card' : ''}`}
-          aria-label="Patient feedback"
-        >
-          {step === successStep ? (
-            <div className="success">
-              <Brand />
-              <div className="heart-badge"><Icon name="heart" /></div>
-              <span className="eyebrow">EVERY VOICE MAKES A DIFFERENCE</span>
-              <h1 ref={heading} tabIndex={-1}>Thank You!</h1>
-              <p>Your feedback helps us provide<br />better care for everyone.</p>
-              <button className="primary" onClick={restart}>Submit another response <Icon name="arrow" /></button>
-              <p className="community">Service with a difference</p>
-              <div className="wave" />
-            </div>
-          ) : (
-            <>
-              <div className="step-header">
-                {step > 1 ? (
-                  <button className="back" onClick={() => setStep(step - 1)} type="button">
-                    <Icon name="back" />Back
-                  </button>
-                ) : (
-                  <span className="step-anon"><Icon name="lock" /> Anonymous</span>
-                )}
-                <span>{step} of {totalSteps}</span>
-              </div>
-              <div
-                className="progress"
-                role="progressbar"
-                aria-label="Feedback progress"
-                aria-valuenow={step}
-                aria-valuemin={0}
-                aria-valuemax={totalSteps}
-              >
-                {Array.from({ length: totalSteps }, (_, i) => i + 1).map((n) => (
-                  <span className={n <= step ? 'filled' : ''} key={n} />
-                ))}
-              </div>
-              <form onSubmit={onSubmit}>
-                <h1 className="question" ref={heading} tabIndex={-1} id="question">
-                  {isCommentStep
-                    ? textQuestion?.prompt ?? 'Any additional comments or suggestions?'
-                    : question.prompt}
-                </h1>
-                {!isCommentStep ? (
-                  <fieldset aria-labelledby="question">
-                    <legend className="sr-only">Select one answer</legend>
-                    {question.options.map((option, index) => (
-                      <label
-                        className={`option ${answers[step - 1] === option.label ? 'selected' : ''}`}
-                        key={option.label}
-                      >
-                        <input
-                          type="radio"
-                          name={`question-${step}`}
-                          value={option.label}
-                          checked={answers[step - 1] === option.label}
-                          onChange={() =>
-                            setAnswers((previous) =>
-                              previous.map((answer, i) => (i === step - 1 ? option.label : answer))
-                            )
-                          }
-                        />
-                        <AnswerEmoji name={option.icon ?? question.options[index]?.icon ?? 'good'} />
-                        <span>{option.label}</span>
-                        {answers[step - 1] === option.label && (
-                          <span className="selection-check" aria-hidden="true">✓</span>
-                        )}
-                      </label>
-                    ))}
-                  </fieldset>
-                ) : (
-                  <>
-                    <label className="sr-only" htmlFor="comments">Your comments (optional)</label>
-                    <textarea
-                      id="comments"
-                      value={comments}
-                      onChange={(e) => setComments(e.target.value)}
-                      placeholder={'Write your comments here…\n(Optional)'}
-                      maxLength={2000}
-                    />
-                    <div className="comment-meta">
-                      <span>Comments stay anonymous unless you share contact details below.</span>
-                      <span>{comments.length}/2000</span>
-                    </div>
-                    <div className="contact-optional">
-                      <p className="contact-optional-title">Want us to follow up? (optional)</p>
-                      <p className="contact-optional-hint">
-                        Leave a phone number or email only if you would like us to reach you.
-                      </p>
-                      <label className="contact-field" htmlFor="contact-phone">
-                        <span>Phone number</span>
-                        <input
-                          id="contact-phone"
-                          type="tel"
-                          inputMode="tel"
-                          autoComplete="tel"
-                          value={contactPhone}
-                          onChange={(e) => setContactPhone(e.target.value)}
-                          placeholder="e.g. 0700 000 000"
-                          maxLength={40}
-                        />
-                      </label>
-                      <label className="contact-field" htmlFor="contact-email">
-                        <span>Email</span>
-                        <input
-                          id="contact-email"
-                          type="email"
-                          autoComplete="email"
-                          value={contactEmail}
-                          onChange={(e) => setContactEmail(e.target.value)}
-                          placeholder="e.g. name@email.com"
-                          maxLength={120}
-                        />
-                      </label>
-                    </div>
-                  </>
-                )}
-                {submitError && <p className="answer-hint" role="alert">{submitError}</p>}
-                <button
-                  type="submit"
-                  className="primary next"
-                  disabled={(!isCommentStep && !answers[step - 1]) || submitting}
-                >
-                  {isCommentStep ? (submitting ? 'Saving…' : 'Complete Feedback') : 'Next'}
-                  {!isCommentStep && <Icon name="arrow" />}
-                </button>
-                {!isCommentStep && <p className="answer-hint">Select an answer to continue</p>}
-              </form>
-              {isCommentStep && (
-                <>
-                  <div className="thank-you">
-                    <div className="heart-badge"><Icon name="heart" /></div>
-                    <div>
-                      <h2>Your voice matters.</h2>
-                      <p>Your feedback helps us provide better care for everyone.</p>
-                    </div>
-                  </div>
-                  <p className="community">Service with a difference</p>
-                  <div className="wave" />
-                </>
-              )}
-            </>
-          )}
-        </section>
-        <footer>Value Family Hospital <span>•</span> Service with a difference</footer>
+
+        <h1 className="mt-10 font-heading text-3xl font-extrabold tracking-tight text-balance">
+          Tell us about your visit
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">Choose the option that fits your stay.</p>
+
+        <div className="mt-8 grid gap-3">
+          {forms.map(({ href, title, description, icon: Icon }) => (
+            <a
+              key={href}
+              href={href}
+              className="group flex items-center gap-4 rounded-xl border bg-card p-4 transition-colors hover:border-primary/50 hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+            >
+              <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+                <Icon className="size-5" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block font-semibold">{title}</span>
+                <span className="block text-sm text-muted-foreground">{description}</span>
+              </span>
+              <ArrowRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+            </a>
+          ))}
+        </div>
       </div>
     </main>
   );

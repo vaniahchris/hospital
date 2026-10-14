@@ -11,7 +11,11 @@ npm run dev
 
 Open http://localhost:3000.
 
-Admin login is at http://localhost:3000/admin/login (Supabase Auth). The public form and admin dashboard read/write the connected Supabase project.
+- `/outpatient`: outpatient feedback form (questions managed from the admin)
+- `/inpatient`: inpatient feedback form
+- `/`: lets patients choose between the two forms
+
+Admin login is at http://localhost:3000/admin/login (Supabase Auth). Both forms and the admin dashboard read/write the connected Supabase project.
 
 ## Verify
 
