@@ -10,7 +10,9 @@ import {
   ExternalLink,
   LogOut,
   Menu,
+  Send,
   UserCog,
+  Users,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
@@ -35,6 +37,8 @@ const links = [
   { href: '/admin', label: 'Overview', icon: LayoutDashboard },
   { href: '/admin/questions', label: 'Questions', icon: ListChecks },
   { href: '/admin/responses', label: 'Responses', icon: MessageSquareText },
+  { href: '/admin/patients', label: 'Patients', icon: Users },
+  { href: '/admin/messages', label: 'Messages', icon: Send },
 ] as const;
 
 export function AdminShell({ children, title }: { children: React.ReactNode; title: string }) {

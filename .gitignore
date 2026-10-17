@@ -3,6 +3,8 @@ node_modules/
 .install-cache/
 .next/
 out/
+.superpowers/
+.worktrees/
 *.tsbuildinfo
 .env*
 !.env.example
