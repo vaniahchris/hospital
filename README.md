@@ -31,3 +31,17 @@ Copy `.env.example` to `.env` and set `NEXT_PUBLIC_SUPABASE_URL` plus `NEXT_PUBL
 The inpatient UI is a separate Next.js app in `../folder1`. Both apps use the same Supabase project. The shared `submissions` table stores `source` (`outpatient` or `inpatient`); inpatient ratings are stored in `inpatient_answers`. The admin responses screen has separate Outpatients and Inpatients views, and its exports respect the selected view. The dashboard's question statistics remain based on outpatient responses.
 
 The additive schema change is in `database/inpatient-responses.sql`. It has been applied to the connected project. For another database, run it before deploying the inpatient UI. Set the same public Supabase URL and publishable/anon key on both hosts.
+
+## SMS (Africa's Talking)
+
+Patient broadcasts and invites use Supabase Edge Function `sms-send`.
+
+1. Create an Africa's Talking sandbox app and API key.
+2. In Supabase → Edge Functions → Secrets, set:
+   - `AT_USERNAME` = `sandbox`
+   - `AT_API_KEY` = your sandbox key
+   - `AT_SENDER_ID` = optional (leave empty until approved)
+3. Admin → Patients: upload CSV (`name,phone`).
+4. Admin → Messages: send in Test mode; check the AT simulator.
+
+Live cutover: change secrets to the live username/key (and Sender ID when approved). No code change.
