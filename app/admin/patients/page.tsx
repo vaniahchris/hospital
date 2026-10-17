@@ -151,6 +151,7 @@ export default function Patients() {
           </CardHeader>
           <CardContent className="space-y-4">
             <Input
+              key={filename}
               type="file"
               accept=".csv,text/csv"
               aria-label="Patient CSV file"

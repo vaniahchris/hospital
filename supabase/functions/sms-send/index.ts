@@ -181,7 +181,7 @@ Deno.serve(async (req) => {
 
       for (const r of batch) {
         const hit = byPhone.get(r.phone);
-        const ok = hit && Number(hit.statusCode) === 101;
+        const ok = hit && [100, 101, 102].includes(Number(hit.statusCode));
         if (ok) {
           sentCount++;
           recipientRows.push({
