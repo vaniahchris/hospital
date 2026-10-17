@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Send } from 'lucide-react';
 import { AdminShell } from '../shared';
 import { createClient } from '@/lib/supabase/client';
@@ -115,6 +115,7 @@ export default function Messages() {
   const [statusError, setStatusError] = useState('');
   const [sendError, setSendError] = useState('');
   const [success, setSuccess] = useState('');
+  const recipientRequestRef = useRef(0);
 
   const parts = useMemo(() => countSmsParts(body), [body]);
   const eligibleCount = patients.length;
@@ -220,6 +221,7 @@ export default function Messages() {
   }
 
   async function selectMessage(message: SmsMessage) {
+    const requestId = ++recipientRequestRef.current;
     setSelectedMessage(message);
     setRecipients([]);
     setRecipientLoading(true);
@@ -229,6 +231,7 @@ export default function Messages() {
       .select('id, phone, status, error, cost')
       .eq('message_id', message.id)
       .order('status');
+    if (requestId !== recipientRequestRef.current) return;
     setRecipientLoading(false);
     if (error) {
       setLoadError(error.message);
