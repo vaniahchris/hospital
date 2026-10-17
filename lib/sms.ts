@@ -15,8 +15,8 @@ export function countSmsParts(body: string): {
   parts: number;
   length: number;
 } {
-  const length = [...body].length;
   const gsm7 = GSM7.test(body);
+  const length = gsm7 ? [...body].length : body.length;
   if (gsm7) {
     if (length <= 160) return { encoding: 'gsm7', parts: 1, length };
     return { encoding: 'gsm7', parts: Math.ceil(length / 153), length };

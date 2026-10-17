@@ -17,6 +17,7 @@ type Body = {
 
 const MAX_PARTS = 3;
 const BATCH = 500;
+const PAGE_SIZE = 1000;
 
 function json(payload: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(payload), {
@@ -29,9 +30,11 @@ function countParts(text: string): number {
   const gsm =
     /^[@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !"#¤%&'()*+,\-./0-9:;<=>?¡A-ZÄÖÑÜ§¿a-zäöñüà\r\n]*$/
       .test(text);
-  const length = [...text].length;
-  if (gsm) return length <= 160 ? 1 : Math.ceil(length / 153);
-  return length <= 70 ? 1 : Math.ceil(length / 67);
+  if (gsm) {
+    const length = [...text].length;
+    return length <= 160 ? 1 : Math.ceil(length / 153);
+  }
+  return text.length <= 70 ? 1 : Math.ceil(text.length / 67);
 }
 
 Deno.serve(async (req) => {
@@ -94,12 +97,17 @@ Deno.serve(async (req) => {
       if (data.do_not_message) return json({ error: "This patient is marked do not message." }, 400);
       recipients = [data];
     } else {
-      const { data, error } = await admin
-        .from("patients")
-        .select("id, phone, do_not_message")
-        .eq("do_not_message", false);
-      if (error) return json({ error: error.message }, 400);
-      recipients = data ?? [];
+      for (let from = 0;; from += PAGE_SIZE) {
+        const { data, error } = await admin
+          .from("patients")
+          .select("id, phone, do_not_message")
+          .eq("do_not_message", false)
+          .order("id")
+          .range(from, from + PAGE_SIZE - 1);
+        if (error) return json({ error: error.message }, 400);
+        recipients.push(...(data ?? []));
+        if (!data || data.length < PAGE_SIZE) break;
+      }
     }
 
     if (!recipients.length) return json({ error: "No recipients to message." }, 400);
@@ -204,11 +212,24 @@ Deno.serve(async (req) => {
     const status =
       failedCount === 0 ? "sent" : sentCount === 0 ? "failed" : "partial";
 
-    await admin.from("sms_recipients").insert(recipientRows);
-    await admin
+    const { error: recipientsError } = await admin
+      .from("sms_recipients")
+      .insert(recipientRows);
+    const { error: messageError } = await admin
       .from("sms_messages")
       .update({ sent_count: sentCount, failed_count: failedCount, status })
       .eq("id", msg.id);
+
+    if (recipientsError || messageError) {
+      const details = [
+        recipientsError && `recipient results: ${recipientsError.message}`,
+        messageError && `message status: ${messageError.message}`,
+      ].filter(Boolean).join("; ");
+      return json({
+        error: `Africa's Talking send completed, but database persistence failed: ${details}`,
+        messageId: msg.id,
+      }, 500);
+    }
 
     return json({
       ok: true,

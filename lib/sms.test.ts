@@ -16,6 +16,11 @@ describe('countSmsParts', () => {
     const r = countSmsParts('Hello 💜');
     expect(r.encoding).toBe('ucs2');
   });
+  it('counts UCS-2 length in UTF-16 code units', () => {
+    const r = countSmsParts('💜'.repeat(36));
+    expect(r.length).toBe(72);
+    expect(r.parts).toBe(2);
+  });
 });
 
 describe('isWithinSmsPartLimit', () => {
