@@ -11,7 +11,6 @@ import {
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { AdminShell } from '../shared';
 import { createClient } from '@/lib/supabase/client';
 import { parsePatientCsv, type CsvPreview } from '@/lib/patient-csv';
 import { normalizeUgandanPhone } from '@/lib/phone';
@@ -331,7 +330,7 @@ export default function Patients() {
   }
 
   return (
-    <AdminShell title="Patients">
+    <>
       <main className="mx-auto max-w-6xl space-y-6 p-4 md:p-8">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -599,6 +598,6 @@ export default function Patients() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </AdminShell>
+    </>
   );
 }

@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { GripVertical, Pencil, Plus, Trash2 } from 'lucide-react';
-import { AdminShell } from '../shared';
 import { createClient } from '@/lib/supabase/client';
 import {
   defaultOptionsForType,
@@ -126,7 +125,6 @@ export default function Questions() {
   }
 
   return (
-    <AdminShell title="Questions">
       <main className="mx-auto max-w-6xl space-y-6 p-4 md:p-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -249,6 +247,5 @@ export default function Questions() {
           </div>
         ) : null}
       </main>
-    </AdminShell>
   );
 }

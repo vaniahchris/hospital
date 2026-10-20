@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Send } from 'lucide-react';
-import { AdminShell } from '../shared';
 import { createClient } from '@/lib/supabase/client';
 import {
   countSmsParts,
@@ -241,7 +240,7 @@ export default function Messages() {
   }
 
   return (
-    <AdminShell title="Messages">
+    <>
       <main className="mx-auto max-w-6xl space-y-6 p-4 md:p-8">
         <div>
           <h2 className="font-heading text-2xl font-extrabold tracking-tight">Messages</h2>
@@ -505,6 +504,6 @@ export default function Messages() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </AdminShell>
+    </>
   );
 }

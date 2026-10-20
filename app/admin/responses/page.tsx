@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { BedDouble, Download, FileText, PhoneCall, Trash2, Users, X } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { AdminShell } from '../shared';
 import { createClient } from '@/lib/supabase/client';
 import {
   formatResponseDate,
@@ -499,7 +498,7 @@ export default function Responses() {
   }
 
   return (
-    <AdminShell title="Responses">
+    <>
       <main className="mx-auto max-w-6xl space-y-6 p-4 md:p-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -702,7 +701,7 @@ export default function Responses() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </AdminShell>
+    </>
   );
 }
 

@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { LayoutDashboard, ListChecks, MessageSquareText, Users } from 'lucide-react';
-import { AdminShell } from './shared';
 import { createClient } from '@/lib/supabase/client';
 import {
   scoreForCare,
@@ -201,7 +200,6 @@ export default function AdminOverview() {
   );
 
   return (
-    <AdminShell title="Dashboard">
       <main className="mx-auto max-w-6xl space-y-6 p-4 md:p-8">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -270,7 +268,6 @@ export default function AdminOverview() {
           ) : null}
         </section>
       </main>
-    </AdminShell>
   );
 }
 

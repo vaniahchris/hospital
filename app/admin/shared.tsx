@@ -41,13 +41,35 @@ const links = [
   { href: '/admin/messages', label: 'Messages', icon: Send },
 ] as const;
 
-export function AdminShell({ children, title }: { children: React.ReactNode; title: string }) {
+function titleFromPath(path: string) {
+  if (path.startsWith('/admin/questions')) return 'Questions';
+  if (path.startsWith('/admin/responses')) return 'Responses';
+  if (path.startsWith('/admin/patients')) return 'Patients';
+  if (path.startsWith('/admin/messages')) return 'Messages';
+  return 'Dashboard';
+}
+
+/** Layout wrapper: keeps the sidebar mounted across admin route changes. */
+export function AdminAppLayout({ children }: { children: React.ReactNode }) {
+  const path = usePathname();
+  if (path === '/admin/login') return children;
+  return <AdminShell>{children}</AdminShell>;
+}
+
+export function AdminShell({
+  children,
+  title,
+}: {
+  children: React.ReactNode;
+  title?: string;
+}) {
   const path = usePathname();
   const router = useRouter();
   const [ready, setReady] = useState(false);
   const [email, setEmail] = useState('Administrator');
   const [mobileOpen, setMobileOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const heading = title ?? titleFromPath(path);
 
   useEffect(() => {
     const supabase = createClient();
@@ -202,7 +224,7 @@ export function AdminShell({ children, title }: { children: React.ReactNode; tit
 
       <div className="min-w-0">
         <header className="sticky top-0 z-10 hidden h-16 items-center justify-between border-b bg-background px-8 md:flex">
-          <h1 className="font-heading text-lg font-bold tracking-tight">{title}</h1>
+          <h1 className="font-heading text-lg font-bold tracking-tight">{heading}</h1>
           <div className="flex items-center gap-2">
             <Badge variant="secondary" className="gap-1.5 bg-emerald-50 text-emerald-700">
               <span className="size-1.5 rounded-full bg-emerald-500" />
