@@ -60,7 +60,10 @@ type SmsMessage = {
   failed_count: number;
   status: 'pending' | 'sent' | 'partial' | 'failed';
   created_at: string;
+  sms_recipients?: { phone: string }[] | null;
 };
+
+const HISTORY_PAGE_SIZE = 10;
 
 type SmsRecipient = {
   id: string;
@@ -97,6 +100,16 @@ function kindLabel(kind: MessageKind) {
   return kind[0].toUpperCase() + kind.slice(1);
 }
 
+function phonesLabel(recipients?: { phone: string }[] | null) {
+  if (!recipients?.length) return '—';
+  if (recipients.length === 1) return recipients[0].phone;
+  if (recipients.length === 2) return `${recipients[0].phone}, ${recipients[1].phone}`;
+  return `${recipients[0].phone} (+${recipients.length - 1} more)`;
+}
+
+const MESSAGE_SELECT =
+  'id, kind, body, recipient_count, sent_count, failed_count, status, created_at, sms_recipients(phone)';
+
 export default function Messages() {
   const [kind, setKind] = useState<MessageKind>('broadcast');
   const [body, setBody] = useState('');
@@ -114,6 +127,7 @@ export default function Messages() {
   const [statusError, setStatusError] = useState('');
   const [sendError, setSendError] = useState('');
   const [success, setSuccess] = useState('');
+  const [historyPage, setHistoryPage] = useState(0);
   const recipientRequestRef = useRef(0);
 
   const parts = useMemo(() => countSmsParts(body), [body]);
@@ -125,13 +139,20 @@ export default function Messages() {
     !sending &&
     (kind === 'single' ? !!patientId : eligibleCount > 0);
 
+  const historyPageCount = Math.max(1, Math.ceil(messages.length / HISTORY_PAGE_SIZE));
+  const pagedMessages = useMemo(() => {
+    const start = historyPage * HISTORY_PAGE_SIZE;
+    return messages.slice(start, start + HISTORY_PAGE_SIZE);
+  }, [messages, historyPage]);
+
   async function loadHistory() {
     const { data, error } = await createClient()
       .from('sms_messages')
-      .select('*')
+      .select(MESSAGE_SELECT)
       .order('created_at', { ascending: false });
     if (error) throw error;
     setMessages((data as SmsMessage[]) ?? []);
+    setHistoryPage(0);
   }
 
   useEffect(() => {
@@ -148,7 +169,10 @@ export default function Messages() {
           .select('id, name, phone')
           .eq('do_not_message', false)
           .order('name'),
-        supabase.from('sms_messages').select('*').order('created_at', { ascending: false }),
+        supabase
+          .from('sms_messages')
+          .select(MESSAGE_SELECT)
+          .order('created_at', { ascending: false }),
       ]);
 
       if (!active) return;
@@ -166,7 +190,10 @@ export default function Messages() {
       const errors = [patientsResult.error?.message, messagesResult.error?.message].filter(Boolean);
       setLoadError(errors.join(' '));
       if (!patientsResult.error) setPatients((patientsResult.data as Patient[]) ?? []);
-      if (!messagesResult.error) setMessages((messagesResult.data as SmsMessage[]) ?? []);
+      if (!messagesResult.error) {
+        setMessages((messagesResult.data as SmsMessage[]) ?? []);
+        setHistoryPage(0);
+      }
       setLoading(false);
     }
 
@@ -378,53 +405,92 @@ export default function Messages() {
             <CardTitle>Message history</CardTitle>
             <CardDescription>Choose a message to inspect recipient delivery results.</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Date</TableHead>
                   <TableHead>Type</TableHead>
+                  <TableHead>Phone</TableHead>
                   <TableHead>Message</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Sent / Failed / Total</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {messages.map((message) => (
-                  <TableRow
-                    key={message.id}
-                    tabIndex={0}
-                    role="button"
-                    aria-label={`Inspect ${kindLabel(message.kind)} sent ${new Date(message.created_at).toLocaleString()}`}
-                    className="cursor-pointer"
-                    data-state={selectedMessage?.id === message.id ? 'selected' : undefined}
-                    onClick={() => selectMessage(message)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        selectMessage(message);
-                      }
-                    }}
-                  >
-                    <TableCell>{new Date(message.created_at).toLocaleString()}</TableCell>
-                    <TableCell>{kindLabel(message.kind)}</TableCell>
-                    <TableCell className="max-w-sm truncate" title={message.body}>
-                      {message.body}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={message.status === 'failed' ? 'destructive' : 'secondary'}>
-                        {message.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {message.sent_count} / {message.failed_count} / {message.recipient_count}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {pagedMessages.map((message) => {
+                  const phoneText = phonesLabel(message.sms_recipients);
+                  return (
+                    <TableRow
+                      key={message.id}
+                      tabIndex={0}
+                      role="button"
+                      aria-label={`Inspect ${kindLabel(message.kind)} sent ${new Date(message.created_at).toLocaleString()}`}
+                      className="cursor-pointer"
+                      data-state={selectedMessage?.id === message.id ? 'selected' : undefined}
+                      onClick={() => selectMessage(message)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          selectMessage(message);
+                        }
+                      }}
+                    >
+                      <TableCell>{new Date(message.created_at).toLocaleString()}</TableCell>
+                      <TableCell>{kindLabel(message.kind)}</TableCell>
+                      <TableCell className="max-w-[12rem] truncate" title={phoneText}>
+                        {phoneText}
+                      </TableCell>
+                      <TableCell className="max-w-sm truncate" title={message.body}>
+                        {message.body}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={message.status === 'failed' ? 'destructive' : 'secondary'}>
+                          {message.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {message.sent_count} / {message.failed_count} / {message.recipient_count}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
             {!loading && !messages.length ? (
               <p className="py-8 text-center text-sm text-muted-foreground">No messages sent yet.</p>
+            ) : null}
+            {messages.length ? (
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-muted-foreground">
+                  Page {historyPage + 1} of {historyPageCount} · showing{' '}
+                  {historyPage * HISTORY_PAGE_SIZE + 1}–
+                  {Math.min((historyPage + 1) * HISTORY_PAGE_SIZE, messages.length)} of{' '}
+                  {messages.length}
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={historyPage === 0}
+                    onClick={() => setHistoryPage((page) => Math.max(0, page - 1))}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={historyPage >= historyPageCount - 1}
+                    onClick={() =>
+                      setHistoryPage((page) => Math.min(historyPageCount - 1, page + 1))
+                    }
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
             ) : null}
           </CardContent>
         </Card>
