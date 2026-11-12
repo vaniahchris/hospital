@@ -45,39 +45,31 @@ export default function AdminLogin() {
   }
 
   return (
-    <main className="grid min-h-svh lg:grid-cols-[minmax(360px,42%)_1fr]">
-      <section className="relative hidden flex-col overflow-hidden bg-primary px-12 py-10 text-primary-foreground lg:flex">
-        <Link href="/" className="relative z-10 flex items-center gap-3 text-primary-foreground">
+    <main className="grid min-h-svh bg-background lg:grid-cols-[minmax(320px,38%)_1fr]">
+      <section className="hidden flex-col bg-primary px-10 py-10 text-primary-foreground lg:flex">
+        <Link href="/" className="flex items-center gap-3 text-primary-foreground">
           <img
             src="/value-family-hospital-logo.png"
             alt="Value Family Hospital logo"
-            className="size-10 rounded-full object-cover ring-2 ring-white/30"
+            className="size-10 rounded-full object-cover"
           />
           <span>
-            <strong className="block font-heading text-base font-extrabold">Value Family Hospital</strong>
-            <small className="text-[10px] text-primary-foreground/80">Kitende · Service with a difference</small>
+            <strong className="block text-sm font-semibold">Value Family Hospital</strong>
+            <small className="text-[10px] text-primary-foreground/80">Kitende · Feedback Admin</small>
           </span>
         </Link>
-        <div className="relative z-10 my-auto max-w-md">
-          <p className="text-[10px] font-bold tracking-[0.2em] text-primary-foreground/75 uppercase">
-            Feedback Administration
+        <div className="my-auto max-w-sm space-y-3">
+          <h1 className="text-3xl font-semibold text-balance">Sign in to manage feedback</h1>
+          <p className="text-sm leading-relaxed text-primary-foreground/85">
+            Review responses, update questions, and message patients.
           </p>
-          <h1 className="mt-4 font-heading text-4xl font-extrabold tracking-tight text-balance">
-            Turn every response into better care.
-          </h1>
-          <p className="mt-4 max-w-sm text-sm leading-relaxed text-primary-foreground/85">
-            Review patient experiences, discover trends, and improve the questions that matter most.
-          </p>
-          <BadgeLive />
         </div>
-        <p className="relative z-10 font-serif text-sm text-primary-foreground/80 italic">
-          Service with a difference
-        </p>
+        <p className="text-xs text-primary-foreground/70">Service with a difference</p>
       </section>
 
-      <section className="flex items-center justify-center bg-muted/30 p-6 md:p-10">
-        <Card className="w-full max-w-md shadow-sm">
-          <CardHeader>
+      <section className="flex items-center justify-center bg-background p-6 md:p-10">
+        <Card className="w-full max-w-md border shadow-none">
+          <CardHeader className="space-y-1">
             <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-primary lg:hidden">
               <img
                 src="/value-family-hospital-logo.png"
@@ -86,7 +78,7 @@ export default function AdminLogin() {
               />
               Value Family Hospital
             </div>
-            <CardTitle className="font-heading text-2xl font-extrabold tracking-tight">Welcome back</CardTitle>
+            <CardTitle className="text-xl font-semibold">Welcome back</CardTitle>
             <CardDescription>Sign in to manage feedback and view analytics.</CardDescription>
           </CardHeader>
           <CardContent>
@@ -132,8 +124,8 @@ export default function AdminLogin() {
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               ) : null}
-              <Button type="submit" className="w-full" size="lg" disabled={loading}>
-                {loading ? 'Signing in…' : 'Sign in to dashboard'}
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? 'Signing in…' : 'Sign in'}
                 {!loading ? <ArrowRight data-icon="inline-end" /> : null}
               </Button>
               <Button variant="link" className="text-muted-foreground" asChild>
@@ -147,14 +139,5 @@ export default function AdminLogin() {
         </Card>
       </section>
     </main>
-  );
-}
-
-function BadgeLive() {
-  return (
-    <div className="mt-8 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-xs font-semibold">
-      <span className="size-1.5 rounded-full bg-emerald-300" />
-      Live
-    </div>
   );
 }

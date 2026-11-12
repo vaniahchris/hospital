@@ -13,6 +13,7 @@ import {
   Send,
   UserCog,
   Users,
+  X,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
@@ -97,6 +98,15 @@ export function AdminShell({
     };
   }, [router]);
 
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [mobileOpen]);
+
   const active = (href: string) => (href === '/admin' ? path === href : path.startsWith(href));
 
   async function logout() {
@@ -107,16 +117,137 @@ export function AdminShell({
 
   if (!ready) {
     return (
-      <div className="flex min-h-svh items-center justify-center bg-muted/40">
+      <div className="flex min-h-svh items-center justify-center bg-background">
         <Skeleton className="size-8 rounded-full" />
       </div>
     );
   }
 
+  const navLinks = (
+    <nav className="flex flex-col gap-1 px-3">
+      {links.map((link) => {
+        const Icon = link.icon;
+        const isActive = active(link.href);
+        return (
+          <Link
+            key={link.href}
+            href={link.href}
+            onClick={() => setMobileOpen(false)}
+            className={cn(
+              'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+              isActive
+                ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                : 'text-sidebar-foreground hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground'
+            )}
+          >
+            <Icon className="size-4" />
+            {link.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+
+  const sidebarFooter = (
+    <div className="mt-auto flex flex-col gap-3 p-4">
+      <Button variant="outline" className="w-full justify-between" asChild>
+        <Link href="/" onClick={() => setMobileOpen(false)}>
+          View feedback form
+          <ExternalLink className="size-3.5" />
+        </Link>
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        className="w-full justify-start"
+        onClick={() => {
+          setMobileOpen(false);
+          setAccountOpen(true);
+        }}
+      >
+        <UserCog className="size-3.5" />
+        Account settings
+      </Button>
+      <Separator />
+      <div className="flex items-center gap-3">
+        <Avatar size="sm">
+          <AvatarFallback className="bg-primary/10 text-primary">
+            {email.slice(0, 1).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-xs font-semibold">Administrator</p>
+          <p className="truncate text-[10px] text-muted-foreground">{email}</p>
+        </div>
+        <Button type="button" variant="ghost" size="icon-sm" onClick={logout} aria-label="Sign out">
+          <LogOut className="size-3.5" />
+        </Button>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="min-h-svh bg-muted/40 md:grid md:grid-cols-[240px_1fr]">
-      <aside className="border-b border-sidebar-border bg-sidebar md:sticky md:top-0 md:flex md:h-svh md:flex-col md:border-b-0 md:border-r">
-        <div className="flex items-center justify-between gap-3 px-4 py-4 md:px-5">
+    <div className="min-h-svh bg-background md:grid md:grid-cols-[220px_1fr]">
+      {/* Mobile top bar only — menu opens as overlay drawer */}
+      <div className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b bg-background px-4 py-3 md:hidden">
+        <Link href="/" className="flex min-w-0 items-center gap-3 text-primary">
+          <img
+            src="/value-family-hospital-logo.png"
+            alt="Value Family Hospital logo"
+            className="size-9 rounded-full object-cover"
+          />
+          <span className="min-w-0">
+            <strong className="block truncate text-sm font-semibold text-foreground">
+              Value Family Hospital
+            </strong>
+            <small className="text-[10px] tracking-wide text-muted-foreground uppercase">
+              Feedback Admin
+            </small>
+          </span>
+        </Link>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon-sm"
+          onClick={() => setMobileOpen(true)}
+          aria-label="Open navigation"
+        >
+          <Menu />
+        </Button>
+      </div>
+
+      {mobileOpen ? (
+        <div className="fixed inset-0 z-40 md:hidden" role="dialog" aria-modal="true" aria-label="Navigation">
+          <button
+            type="button"
+            className="absolute inset-0 bg-foreground/30"
+            aria-label="Close navigation"
+            onClick={() => setMobileOpen(false)}
+          />
+          <aside className="absolute inset-y-0 left-0 flex w-[min(20rem,86vw)] flex-col border-r bg-sidebar shadow-lg">
+            <div className="flex items-center justify-between gap-3 border-b px-4 py-4">
+              <span className="text-sm font-semibold">{heading}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setMobileOpen(false)}
+                aria-label="Close navigation"
+              >
+                <X />
+              </Button>
+            </div>
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pt-3">
+              {navLinks}
+              {sidebarFooter}
+            </div>
+          </aside>
+        </div>
+      ) : null}
+
+      {/* Desktop sidebar */}
+      <aside className="hidden border-r border-sidebar-border bg-sidebar md:sticky md:top-0 md:flex md:h-svh md:flex-col">
+        <div className="flex items-center gap-3 px-4 py-4">
           <Link href="/" className="flex items-center gap-3 text-primary">
             <img
               src="/value-family-hospital-logo.png"
@@ -124,7 +255,7 @@ export function AdminShell({
               className="size-9 rounded-full object-cover"
             />
             <span className="min-w-0">
-              <strong className="block font-heading text-sm font-extrabold tracking-tight text-foreground">
+              <strong className="block text-sm font-semibold text-foreground">
                 Value Family Hospital
               </strong>
               <small className="text-[10px] tracking-wide text-muted-foreground uppercase">
@@ -132,112 +263,20 @@ export function AdminShell({
               </small>
             </span>
           </Link>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon-sm"
-            className="md:hidden"
-            onClick={() => setMobileOpen((v) => !v)}
-            aria-label="Toggle navigation"
-          >
-            <Menu />
-          </Button>
         </div>
-
-        <nav className={cn('flex flex-col gap-1 px-3 pb-4', mobileOpen ? 'flex' : 'hidden md:flex')}>
-          {links.map((link) => {
-            const Icon = link.icon;
-            const isActive = active(link.href);
-            return (
-              <Link
-                key={link.href}
-                href={link.href}
-                onClick={() => setMobileOpen(false)}
-                className={cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-                  isActive
-                    ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                    : 'text-sidebar-foreground hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground'
-                )}
-              >
-                <Icon className="size-4" />
-                {link.label}
-              </Link>
-            );
-          })}
-          <Button
-            type="button"
-            variant="ghost"
-            className="mt-1 justify-start md:hidden"
-            onClick={() => {
-              setMobileOpen(false);
-              setAccountOpen(true);
-            }}
-          >
-            <UserCog className="size-4" />
-            Account settings
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            className="justify-start text-destructive md:hidden"
-            onClick={logout}
-          >
-            <LogOut className="size-4" />
-            Sign out
-          </Button>
-        </nav>
-
-        <div className="mt-auto hidden flex-col gap-3 p-4 md:flex">
-          <Button variant="outline" className="w-full justify-between" asChild>
-            <Link href="/">
-              View feedback form
-              <ExternalLink className="size-3.5" />
-            </Link>
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full justify-start"
-            onClick={() => setAccountOpen(true)}
-          >
-            <UserCog className="size-3.5" />
-            Account settings
-          </Button>
-          <Separator />
-          <div className="flex items-center gap-3">
-            <Avatar size="sm">
-              <AvatarFallback className="bg-primary/10 text-primary">
-                {email.slice(0, 1).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-semibold">Administrator</p>
-              <p className="truncate text-[10px] text-muted-foreground">{email}</p>
-            </div>
-            <Button type="button" variant="ghost" size="icon-sm" onClick={logout} aria-label="Sign out">
-              <LogOut className="size-3.5" />
-            </Button>
-          </div>
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+          {navLinks}
+          {sidebarFooter}
         </div>
       </aside>
 
-      <div className="min-w-0">
-        <header className="sticky top-0 z-10 hidden h-16 items-center justify-between border-b bg-background px-8 md:flex">
-          <h1 className="font-heading text-lg font-bold tracking-tight">{heading}</h1>
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="gap-1.5 bg-emerald-50 text-emerald-700">
-              <span className="size-1.5 rounded-full bg-emerald-500" />
-              System live
-            </Badge>
-            <Button type="button" variant="outline" size="sm" onClick={() => setAccountOpen(true)}>
-              <UserCog data-icon="inline-start" />
-              Account
-            </Button>
-            <Button type="button" variant="outline" size="sm" onClick={logout}>
-              Sign out
-            </Button>
-          </div>
+      <div className="min-w-0 bg-background">
+        <header className="sticky top-0 z-10 hidden h-14 items-center justify-between border-b bg-background px-6 lg:px-10 md:flex">
+          <h1 className="text-base font-semibold">{heading}</h1>
+          <Badge variant="secondary" className="gap-1.5 font-normal">
+            <span className="size-1.5 rounded-full bg-[oklch(0.62_0.08_195)]" />
+            Live
+          </Badge>
         </header>
         {children}
       </div>

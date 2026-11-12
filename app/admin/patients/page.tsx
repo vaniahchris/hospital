@@ -331,11 +331,11 @@ export default function Patients() {
 
   return (
     <>
-      <main className="mx-auto max-w-6xl space-y-6 p-4 md:p-8">
+      <main className="mx-auto max-w-[1400px] space-y-10 p-4 md:px-10 md:py-8">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 className="font-heading text-2xl font-extrabold tracking-tight">Patients</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
+          <div className="space-y-1">
+            <h2 className="text-xl font-semibold">Patients</h2>
+            <p className="text-sm text-muted-foreground">
               Import patient contacts and manage messaging preferences.
             </p>
           </div>

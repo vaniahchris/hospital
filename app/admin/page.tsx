@@ -42,14 +42,12 @@ type QuestionStats = {
 };
 
 const chartColors = [
-  '#0b72d1',
-  '#14b8a6',
-  '#f59e0b',
-  '#8b5cf6',
-  '#ef4444',
-  '#22c55e',
-  '#ec4899',
-  '#64748b',
+  'oklch(0.35 0.09 265)',
+  'oklch(0.62 0.08 195)',
+  'oklch(0.72 0.12 75)',
+  'oklch(0.55 0.04 250)',
+  'oklch(0.50 0.14 25)',
+  'oklch(0.78 0.03 250)',
 ];
 
 const metricIcons = {
@@ -200,46 +198,47 @@ export default function AdminOverview() {
   );
 
   return (
-      <main className="mx-auto max-w-6xl space-y-6 p-4 md:p-8">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h2 className="font-heading text-2xl font-extrabold tracking-tight">Good afternoon, Admin</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {loading
-                ? 'Loading live feedback…'
-                : 'Breakdown of answers for each active question.'}
-            </p>
-          </div>
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/admin/responses">View all responses</Link>
-          </Button>
+    <main className="mx-auto max-w-[1400px] space-y-10 p-4 md:px-10 md:py-8">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="space-y-1">
+          <h2 className="text-xl font-semibold">Overview</h2>
+          <p className="text-sm text-muted-foreground">
+            {loading ? 'Loading live feedback…' : 'Answer patterns across active questions.'}
+          </p>
         </div>
+        <Button variant="outline" size="sm" asChild>
+          <Link href="/admin/responses">View all responses</Link>
+        </Button>
+      </div>
 
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {metrics.map(([icon, label, value, sub]) => {
-            const Icon = metricIcons[icon];
-            return (
-              <Card key={label} size="sm">
-                <CardContent className="space-y-3">
-                  <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                    <Icon className="size-4" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">{label}</p>
-                    {loading ? (
-                      <Skeleton className="mt-2 h-7 w-16" />
-                    ) : (
-                      <p className="font-heading text-2xl font-extrabold tracking-tight">{value}</p>
-                    )}
-                    <p className="mt-1 text-[11px] text-muted-foreground">{sub}</p>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </section>
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        {metrics.map(([icon, label, value, sub]) => {
+          const Icon = metricIcons[icon];
+          return (
+            <Card key={label} size="sm">
+              <CardContent className="space-y-2">
+                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Icon className="size-3.5 shrink-0" />
+                  {label}
+                </p>
+                {loading ? (
+                  <Skeleton className="h-7 w-14" />
+                ) : (
+                  <p className="text-2xl font-semibold tabular-nums tracking-tight">{value}</p>
+                )}
+                <p className="text-[11px] text-muted-foreground">{sub}</p>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </section>
 
-        <section className="grid gap-4 lg:grid-cols-2">
+      <section className="space-y-4">
+        <div className="space-y-1">
+          <h3 className="text-base font-semibold">Question breakdown</h3>
+          <p className="text-sm text-muted-foreground">Primary view of how patients answered each question.</p>
+        </div>
+        <div className="grid gap-6 lg:grid-cols-2">
           {loading
             ? Array.from({ length: 4 }, (_, index) => (
                 <Card key={index}>
@@ -248,7 +247,7 @@ export default function AdminOverview() {
                     <Skeleton className="h-4 w-1/3" />
                   </CardHeader>
                   <CardContent>
-                    <Skeleton className="h-36 w-full rounded-xl" />
+                    <Skeleton className="h-48 w-full rounded-md" />
                   </CardContent>
                 </Card>
               ))
@@ -260,14 +259,13 @@ export default function AdminOverview() {
             ))}
 
           {!loading && !questionStats.length ? (
-            <Card className="lg:col-span-2">
-              <CardContent className="py-10 text-center">
-                <Badge variant="secondary">No active rating or choice questions yet</Badge>
-              </CardContent>
-            </Card>
+            <div className="lg:col-span-2 rounded-lg border py-12 text-center text-sm text-muted-foreground">
+              No active rating or choice questions yet.
+            </div>
           ) : null}
-        </section>
-      </main>
+        </div>
+      </section>
+    </main>
   );
 }
 
@@ -299,16 +297,16 @@ function QuestionBreakdownCard({ stats }: { stats: QuestionStats }) {
           <p className="py-8 text-center text-sm text-muted-foreground">No answers yet for this question.</p>
         ) : (
           <div className="space-y-4">
-            <div className="flex h-44 items-end gap-2 sm:gap-3">
+            <div className="flex h-56 items-end gap-2 sm:gap-3">
               {options.map((option, index) => {
                 const heightPct = Math.max((option.count / maxCount) * 100, option.count > 0 ? 8 : 0);
                 const color = chartColors[index % chartColors.length];
                 return (
                   <div key={option.label} className="flex min-w-0 flex-1 flex-col items-center gap-2">
-                    <span className="text-xs font-semibold text-foreground">{option.count}</span>
-                    <div className="flex h-32 w-full items-end justify-center rounded-md bg-muted/50 px-1 pt-2">
+                    <span className="text-xs font-medium tabular-nums text-foreground">{option.count}</span>
+                    <div className="flex h-44 w-full items-end justify-center rounded-md bg-muted px-1 pt-2">
                       <div
-                        className="w-full max-w-10 rounded-t-md transition-[height]"
+                        className="w-full max-w-12 rounded-t-sm transition-[height]"
                         style={{ height: `${heightPct}%`, background: color }}
                         title={`${option.label}: ${option.count} (${option.pct}%)`}
                       />

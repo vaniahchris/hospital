@@ -499,11 +499,11 @@ export default function Responses() {
 
   return (
     <>
-      <main className="mx-auto max-w-6xl space-y-6 p-4 md:p-8">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h2 className="font-heading text-2xl font-extrabold tracking-tight">Patient responses</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
+      <main className="mx-auto max-w-[1400px] space-y-10 p-4 md:px-10 md:py-8">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="space-y-1">
+            <h2 className="text-xl font-semibold">Patient responses</h2>
+            <p className="text-sm text-muted-foreground">
               Review feedback and find areas where the care experience can improve.
             </p>
           </div>

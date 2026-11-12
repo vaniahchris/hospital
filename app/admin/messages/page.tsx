@@ -265,10 +265,10 @@ export default function Messages() {
 
   return (
     <>
-      <main className="mx-auto max-w-6xl space-y-6 p-4 md:p-8">
-        <div>
-          <h2 className="font-heading text-2xl font-extrabold tracking-tight">Messages</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
+      <main className="mx-auto max-w-[1400px] space-y-10 p-4 md:px-10 md:py-8">
+        <div className="space-y-1">
+          <h2 className="text-xl font-semibold">Messages</h2>
+          <p className="text-sm text-muted-foreground">
             Send patient SMS and review delivery results.
           </p>
         </div>
@@ -293,14 +293,14 @@ export default function Messages() {
           </Alert>
         ) : null}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Compose message</CardTitle>
+        <Card className="border">
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-base font-semibold">Compose message</CardTitle>
             <CardDescription>
               Eligible recipients exclude patients marked do not message.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-5">
+          <CardContent className="space-y-6">
             <Tabs value={kind} onValueChange={(value) => changeKind(value ?? 'broadcast')}>
               <TabsList className="grid h-auto w-full grid-cols-3 sm:w-fit">
                 <TabsTrigger value="broadcast">Broadcast</TabsTrigger>
@@ -348,7 +348,7 @@ export default function Messages() {
                 onChange={(event) => setBody(event.target.value)}
                 rows={5}
                 placeholder="Write your message"
-                className="min-h-28 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="min-h-40 w-full rounded-md border border-input bg-transparent px-3 py-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
               />
               {parts.parts > 3 ? (
                 <p className="text-xs text-destructive">Shorten this message to 3 SMS parts or fewer.</p>
