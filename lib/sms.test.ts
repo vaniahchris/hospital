@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   countSmsParts,
   isWithinSmsPartLimit,
-  FEEDBACK_INVITE_BOTH,
+  FEEDBACK_INVITE,
   pickFeedbackInviteBody,
 } from './sms';
 
@@ -32,8 +32,10 @@ describe('isWithinSmsPartLimit', () => {
 describe('pickFeedbackInviteBody', () => {
   it('returns a non-empty invite within 3 parts', () => {
     const body = pickFeedbackInviteBody();
-    expect(body.length).toBeGreaterThan(20);
+    expect(body).toBe(FEEDBACK_INVITE);
     expect(isWithinSmsPartLimit(body)).toBe(true);
-    expect(body.includes('valuefamilyhospital.com')).toBe(true);
+    expect(body).toContain('https://feedback.valuefamilyhospital.com/');
+    expect(body).not.toContain('/outpatient');
+    expect(body).not.toContain('/inpatient');
   });
 });

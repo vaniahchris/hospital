@@ -5,9 +5,6 @@ import { Send } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import {
   countSmsParts,
-  FEEDBACK_INVITE_BOTH,
-  FEEDBACK_INVITE_INPATIENT,
-  FEEDBACK_INVITE_OUTPATIENT,
   isWithinSmsPartLimit,
   pickFeedbackInviteBody,
 } from '@/lib/sms';
@@ -335,27 +332,6 @@ export default function Messages() {
                   : `${eligibleCount} eligible patient${eligibleCount === 1 ? '' : 's'}`}
               </p>
             )}
-
-            {kind === 'feedback_invite' && !isWithinSmsPartLimit(FEEDBACK_INVITE_BOTH) ? (
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setBody(FEEDBACK_INVITE_OUTPATIENT)}
-                >
-                  Outpatient template
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setBody(FEEDBACK_INVITE_INPATIENT)}
-                >
-                  Inpatient template
-                </Button>
-              </div>
-            ) : null}
 
             <div className="grid gap-2">
               <div className="flex items-center justify-between gap-3">

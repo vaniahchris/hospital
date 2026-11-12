@@ -1,14 +1,8 @@
 const GSM7 =
   /^[@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !"#¤%&'()*+,\-./0-9:;<=>?¡A-ZÄÖÑÜ§¿a-zäöñüà\r\n]*$/;
 
-export const FEEDBACK_INVITE_BOTH =
-  'Value Family Hospital: please share feedback. Outpatient: https://feedback.valuefamilyhospital.com/outpatient Inpatient: https://feedback.valuefamilyhospital.com/inpatient';
-
-export const FEEDBACK_INVITE_OUTPATIENT =
-  'Value Family Hospital: please share outpatient feedback: https://feedback.valuefamilyhospital.com/outpatient';
-
-export const FEEDBACK_INVITE_INPATIENT =
-  'Value Family Hospital: please share inpatient feedback: https://feedback.valuefamilyhospital.com/inpatient';
+export const FEEDBACK_INVITE =
+  'Value Family Hospital: please share feedback: https://feedback.valuefamilyhospital.com/';
 
 export function countSmsParts(body: string): {
   encoding: 'gsm7' | 'ucs2';
@@ -30,6 +24,5 @@ export function isWithinSmsPartLimit(body: string, maxParts = 3): boolean {
 }
 
 export function pickFeedbackInviteBody(): string {
-  if (isWithinSmsPartLimit(FEEDBACK_INVITE_BOTH)) return FEEDBACK_INVITE_BOTH;
-  return FEEDBACK_INVITE_OUTPATIENT;
+  return FEEDBACK_INVITE;
 }
