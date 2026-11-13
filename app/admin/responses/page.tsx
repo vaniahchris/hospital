@@ -162,13 +162,16 @@ function SegmentCount({
   active: boolean;
   alert?: boolean;
 }) {
+  // Alert badges clear when opened (unseen → 0); hide instead of lingering as 0.
+  if (alert && value <= 0) return null;
+
   return (
     <span
       className={cn(
         'inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold tabular-nums',
         active
           ? 'bg-primary-foreground/20 text-primary-foreground'
-          : alert && value > 0
+          : alert
             ? 'bg-destructive text-white'
             : 'bg-background text-muted-foreground'
       )}
@@ -395,7 +398,6 @@ function Responses() {
   const outpatientCount = responses.filter((row) => row.source === 'outpatient').length;
   const inpatientCount = responses.filter((row) => row.source === 'inpatient').length;
   const sourceCount = source === 'inpatient' ? inpatientCount : outpatientCount;
-  const urgentCount = urgentFiltered.length;
   const columnHeaders = source === 'inpatient'
     ? inpatientQuestions.map((question) => question.prompt)
     : filterQuestions.map((question) => shortPrompt(question.prompt));
@@ -630,7 +632,7 @@ function Responses() {
                 value: 'urgent',
                 label: 'Needs follow-up',
                 icon: <PhoneCall className="size-4 shrink-0" />,
-                count: unseenUrgentCount > 0 ? unseenUrgentCount : urgentCount,
+                count: unseenUrgentCount,
                 alert: true,
               },
             ]}
