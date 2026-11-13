@@ -12,7 +12,7 @@ import {
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { createClient } from '@/lib/supabase/client';
-import { parsePatientCsv, type CsvPreview } from '@/lib/patient-csv';
+import { parsePatientImportFile, type CsvPreview } from '@/lib/patient-csv';
 import { normalizeUgandanPhone } from '@/lib/phone';
 import {
   AlertDialog,
@@ -282,7 +282,16 @@ export default function Patients() {
       return;
     }
     setFilename(file.name);
-    setPreview(parsePatientCsv(await file.text()));
+    try {
+      setPreview(await parsePatientImportFile(file));
+    } catch (parseError) {
+      setPreview({
+        error:
+          parseError instanceof Error
+            ? parseError.message
+            : 'Could not read this contact file.',
+      });
+    }
   }
 
   async function importPatients() {
@@ -417,14 +426,17 @@ export default function Patients() {
         <Card>
           <CardHeader>
             <CardTitle>Import patients</CardTitle>
-            <CardDescription>Upload a CSV with name and phone columns.</CardDescription>
+            <CardDescription>
+              Upload CSV, XLS, or XLSX. Phone numbers are required; missing names default to
+              Patient.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <Input
               key={filename}
               type="file"
-              accept=".csv,text/csv"
-              aria-label="Patient CSV file"
+              accept=".csv,.xls,.xlsx,.xlsm,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              aria-label="Patient contact file"
               onChange={(event) => selectCsv(event.target.files?.[0])}
             />
             {preview ? (
