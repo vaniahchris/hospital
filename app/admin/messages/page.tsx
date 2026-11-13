@@ -41,6 +41,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 type MessageKind = 'broadcast' | 'single' | 'feedback_invite';
+type Audience = 'all' | 'never_messaged';
 
 type Patient = {
   id: string;
@@ -109,9 +110,12 @@ const MESSAGE_SELECT =
 
 export default function Messages() {
   const [kind, setKind] = useState<MessageKind>('broadcast');
+  const [audience, setAudience] = useState<Audience>('all');
   const [body, setBody] = useState('');
   const [patientId, setPatientId] = useState('');
   const [patients, setPatients] = useState<Patient[]>([]);
+  const [messagedPatientIds, setMessagedPatientIds] = useState<Set<string>>(new Set());
+  const [messagedPhones, setMessagedPhones] = useState<Set<string>>(new Set());
   const [messages, setMessages] = useState<SmsMessage[]>([]);
   const [recipients, setRecipients] = useState<SmsRecipient[]>([]);
   const [selectedMessage, setSelectedMessage] = useState<SmsMessage | null>(null);
@@ -128,7 +132,13 @@ export default function Messages() {
   const recipientRequestRef = useRef(0);
 
   const parts = useMemo(() => countSmsParts(body), [body]);
-  const eligibleCount = patients.length;
+  const eligiblePatients = useMemo(() => {
+    if (audience !== 'never_messaged') return patients;
+    return patients.filter(
+      (patient) => !messagedPatientIds.has(patient.id) && !messagedPhones.has(patient.phone)
+    );
+  }, [patients, audience, messagedPatientIds, messagedPhones]);
+  const eligibleCount = eligiblePatients.length;
   const needsConfirmation = kind !== 'single';
   const canSend =
     !!body.trim() &&
@@ -157,7 +167,7 @@ export default function Messages() {
 
     async function load() {
       const supabase = createClient();
-      const [statusResult, patientsResult, messagesResult] = await Promise.all([
+      const [statusResult, patientsResult, messagesResult, historyResult] = await Promise.all([
         supabase.functions.invoke<{ sandbox?: boolean; error?: string }>('sms-send', {
           body: { action: 'status' },
         }),
@@ -170,6 +180,7 @@ export default function Messages() {
           .from('sms_messages')
           .select(MESSAGE_SELECT)
           .order('created_at', { ascending: false }),
+        supabase.from('sms_recipients').select('patient_id, phone').eq('status', 'sent'),
       ]);
 
       if (!active) return;
@@ -184,12 +195,26 @@ export default function Messages() {
         setSandbox(!!statusResult.data?.sandbox);
       }
 
-      const errors = [patientsResult.error?.message, messagesResult.error?.message].filter(Boolean);
+      const errors = [
+        patientsResult.error?.message,
+        messagesResult.error?.message,
+        historyResult.error?.message,
+      ].filter(Boolean);
       setLoadError(errors.join(' '));
       if (!patientsResult.error) setPatients((patientsResult.data as Patient[]) ?? []);
       if (!messagesResult.error) {
         setMessages((messagesResult.data as SmsMessage[]) ?? []);
         setHistoryPage(0);
+      }
+      if (!historyResult.error) {
+        const ids = new Set<string>();
+        const phones = new Set<string>();
+        for (const row of historyResult.data ?? []) {
+          if (row.patient_id) ids.add(String(row.patient_id));
+          if (row.phone) phones.add(String(row.phone));
+        }
+        setMessagedPatientIds(ids);
+        setMessagedPhones(phones);
       }
       setLoading(false);
     }
@@ -220,6 +245,7 @@ export default function Messages() {
         kind,
         body: body.trim(),
         patientId: kind === 'single' ? patientId : undefined,
+        audience: kind === 'single' ? undefined : audience,
       },
     });
 
@@ -238,6 +264,18 @@ export default function Messages() {
     );
     try {
       await loadHistory();
+      const { data: historyRows } = await createClient()
+        .from('sms_recipients')
+        .select('patient_id, phone')
+        .eq('status', 'sent');
+      const ids = new Set<string>();
+      const phones = new Set<string>();
+      for (const row of historyRows ?? []) {
+        if (row.patient_id) ids.add(String(row.patient_id));
+        if (row.phone) phones.add(String(row.phone));
+      }
+      setMessagedPatientIds(ids);
+      setMessagedPhones(phones);
     } catch (historyError) {
       setLoadError(historyError instanceof Error ? historyError.message : 'Could not refresh history.');
     }
@@ -297,7 +335,8 @@ export default function Messages() {
           <CardHeader className="space-y-1">
             <CardTitle className="text-base font-semibold">Compose message</CardTitle>
             <CardDescription>
-              Eligible recipients exclude patients marked do not message.
+              Eligible recipients exclude patients marked do not message. Choose never messaged to
+              reach only patients with no prior successful send.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -326,11 +365,30 @@ export default function Messages() {
                 </Select>
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">
-                {loading
-                  ? 'Loading eligible recipients…'
-                  : `${eligibleCount} eligible patient${eligibleCount === 1 ? '' : 's'}`}
-              </p>
+              <div className="grid gap-3 sm:max-w-md">
+                <div className="grid gap-2">
+                  <Label htmlFor="message-audience">Audience</Label>
+                  <Select
+                    value={audience}
+                    onValueChange={(value) => setAudience((value as Audience) ?? 'all')}
+                  >
+                    <SelectTrigger id="message-audience" className="w-full">
+                      <SelectValue placeholder="Choose audience" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All eligible patients</SelectItem>
+                      <SelectItem value="never_messaged">Never messaged</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {loading
+                    ? 'Loading eligible recipients…'
+                    : audience === 'never_messaged'
+                      ? `${eligibleCount} never-messaged patient${eligibleCount === 1 ? '' : 's'}`
+                      : `${eligibleCount} eligible patient${eligibleCount === 1 ? '' : 's'}`}
+                </p>
+              </div>
             )}
 
             <div className="grid gap-2">
@@ -527,8 +585,10 @@ export default function Messages() {
           <AlertDialogHeader>
             <AlertDialogTitle>Send to {eligibleCount} patients?</AlertDialogTitle>
             <AlertDialogDescription>
-              This {kindLabel(kind).toLowerCase()} will be sent to every eligible patient. Patients
-              marked do not message are excluded.
+              {audience === 'never_messaged'
+                ? `This ${kindLabel(kind).toLowerCase()} will go only to patients who have never received a successful SMS.`
+                : `This ${kindLabel(kind).toLowerCase()} will be sent to every eligible patient.`}{' '}
+              Patients marked do not message are excluded.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

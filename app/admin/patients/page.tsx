@@ -39,6 +39,13 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Table,
   TableBody,
   TableCell,
@@ -62,6 +69,8 @@ type PatientForm = {
   do_not_message: boolean;
 };
 
+type MessageHistoryFilter = 'all' | 'messaged' | 'never';
+
 const emptyForm: PatientForm = { name: '', phone: '', do_not_message: false };
 
 function csvEscape(value: string) {
@@ -71,7 +80,12 @@ function csvEscape(value: string) {
 
 export default function Patients() {
   const [patients, setPatients] = useState<Patient[]>([]);
+  const [lastMessagedByPatientId, setLastMessagedByPatientId] = useState<Record<string, string>>(
+    {}
+  );
+  const [lastMessagedByPhone, setLastMessagedByPhone] = useState<Record<string, string>>({});
   const [search, setSearch] = useState('');
+  const [messageFilter, setMessageFilter] = useState<MessageHistoryFilter>('all');
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
@@ -87,15 +101,49 @@ export default function Patients() {
   const [pendingDelete, setPendingDelete] = useState<Patient | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  function lastMessagedAt(patient: Patient) {
+    return lastMessagedByPatientId[patient.id] ?? lastMessagedByPhone[patient.phone] ?? null;
+  }
+
   async function load() {
     setLoading(true);
-    const { data, error: loadError } = await createClient()
-      .from('patients')
-      .select('*')
-      .order('updated_at', { ascending: false });
+    const supabase = createClient();
+    const [patientsResult, historyResult] = await Promise.all([
+      supabase.from('patients').select('*').order('updated_at', { ascending: false }),
+      supabase
+        .from('sms_recipients')
+        .select('patient_id, phone, sms_messages!inner(created_at)')
+        .eq('status', 'sent'),
+    ]);
 
-    if (loadError) setError(loadError.message);
-    else setPatients((data as Patient[]) ?? []);
+    if (patientsResult.error) setError(patientsResult.error.message);
+    else setPatients((patientsResult.data as Patient[]) ?? []);
+
+    if (historyResult.error) {
+      setError((current) => current || historyResult.error.message);
+      setLastMessagedByPatientId({});
+      setLastMessagedByPhone({});
+    } else {
+      const byId: Record<string, string> = {};
+      const byPhone: Record<string, string> = {};
+      for (const row of historyResult.data ?? []) {
+        const message = row.sms_messages as { created_at?: string } | { created_at?: string }[] | null;
+        const createdAt = Array.isArray(message)
+          ? message[0]?.created_at
+          : message?.created_at;
+        if (!createdAt) continue;
+        if (row.patient_id) {
+          const current = byId[row.patient_id];
+          if (!current || createdAt > current) byId[row.patient_id] = createdAt;
+        }
+        if (row.phone) {
+          const current = byPhone[row.phone];
+          if (!current || createdAt > current) byPhone[row.phone] = createdAt;
+        }
+      }
+      setLastMessagedByPatientId(byId);
+      setLastMessagedByPhone(byPhone);
+    }
     setLoading(false);
   }
 
@@ -105,12 +153,16 @@ export default function Patients() {
 
   const filteredPatients = useMemo(() => {
     const query = search.trim().toLowerCase();
-    if (!query) return patients;
-    return patients.filter(
-      (patient) =>
+    return patients.filter((patient) => {
+      const messaged = !!lastMessagedAt(patient);
+      if (messageFilter === 'messaged' && !messaged) return false;
+      if (messageFilter === 'never' && messaged) return false;
+      if (!query) return true;
+      return (
         patient.name.toLowerCase().includes(query) || patient.phone.toLowerCase().includes(query)
-    );
-  }, [patients, search]);
+      );
+    });
+  }, [patients, search, messageFilter, lastMessagedByPatientId, lastMessagedByPhone]);
 
   function openAdd() {
     setEditing(null);
@@ -281,16 +333,18 @@ export default function Patients() {
   }
 
   function exportCsv() {
-    const header = 'name,phone,source,messaging,updated';
-    const rows = filteredPatients.map((patient) =>
-      [
+    const header = 'name,phone,source,messaging,last_messaged,updated';
+    const rows = filteredPatients.map((patient) => {
+      const last = lastMessagedAt(patient);
+      return [
         csvEscape(patient.name),
         csvEscape(patient.phone),
         csvEscape(patient.source_filename ?? ''),
         patient.do_not_message ? 'do_not_message' : 'messages_allowed',
+        csvEscape(last ? new Date(last).toISOString() : ''),
         csvEscape(new Date(patient.updated_at).toISOString()),
-      ].join(',')
-    );
+      ].join(',');
+    });
     const blob = new Blob([[header, ...rows].join('\n')], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -313,14 +367,18 @@ export default function Patients() {
 
     autoTable(doc, {
       startY: 70,
-      head: [['Name', 'Phone', 'Source', 'Messaging', 'Updated']],
-      body: filteredPatients.map((patient) => [
-        patient.name,
-        patient.phone,
-        patient.source_filename ?? '—',
-        patient.do_not_message ? 'Do not message' : 'Messages allowed',
-        new Date(patient.updated_at).toLocaleDateString(),
-      ]),
+      head: [['Name', 'Phone', 'Source', 'Messaging', 'Last messaged', 'Updated']],
+      body: filteredPatients.map((patient) => {
+        const last = lastMessagedAt(patient);
+        return [
+          patient.name,
+          patient.phone,
+          patient.source_filename ?? '—',
+          patient.do_not_message ? 'Do not message' : 'Messages allowed',
+          last ? new Date(last).toLocaleDateString() : 'Never',
+          new Date(patient.updated_at).toLocaleDateString(),
+        ];
+      }),
       styles: { fontSize: 9, cellPadding: 4, overflow: 'linebreak' },
       headStyles: { fillColor: [11, 114, 209], textColor: 255 },
       margin: { left: 40, right: 40 },
@@ -427,13 +485,31 @@ export default function Patients() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Input
-              type="search"
-              placeholder="Search by name or phone"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              aria-label="Search patients"
-            />
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <Input
+                type="search"
+                placeholder="Search by name or phone"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                aria-label="Search patients"
+                className="sm:flex-1"
+              />
+              <Select
+                value={messageFilter}
+                onValueChange={(value) =>
+                  setMessageFilter((value as MessageHistoryFilter) ?? 'all')
+                }
+              >
+                <SelectTrigger className="w-full sm:w-56" aria-label="Filter by message history">
+                  <SelectValue placeholder="Message history" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All patients</SelectItem>
+                  <SelectItem value="never">Never messaged</SelectItem>
+                  <SelectItem value="messaged">Messaged before</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -441,12 +517,15 @@ export default function Patients() {
                   <TableHead>Phone</TableHead>
                   <TableHead>Source</TableHead>
                   <TableHead>Messaging</TableHead>
+                  <TableHead>Last messaged</TableHead>
                   <TableHead>Updated</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredPatients.map((patient) => (
+                {filteredPatients.map((patient) => {
+                  const last = lastMessagedAt(patient);
+                  return (
                   <TableRow key={patient.id}>
                     <TableCell className="font-medium">{patient.name}</TableCell>
                     <TableCell>{patient.phone}</TableCell>
@@ -461,6 +540,9 @@ export default function Patients() {
                       >
                         {patient.do_not_message ? 'Do not message' : 'Messages allowed'}
                       </Button>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {last ? new Date(last).toLocaleDateString() : 'Never'}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {new Date(patient.updated_at).toLocaleDateString()}
@@ -486,12 +568,19 @@ export default function Patients() {
                       </div>
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
             {!loading && !filteredPatients.length ? (
               <p className="py-8 text-center text-sm text-muted-foreground">
-                {patients.length ? 'No patients match your search.' : 'No patients yet. Add one or import a CSV.'}
+                {patients.length
+                  ? messageFilter === 'never'
+                    ? 'No never-messaged patients match.'
+                    : messageFilter === 'messaged'
+                      ? 'No previously messaged patients match.'
+                      : 'No patients match your search.'
+                  : 'No patients yet. Add one or import a CSV.'}
               </p>
             ) : null}
           </CardContent>

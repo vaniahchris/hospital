@@ -8,11 +8,14 @@ const corsHeaders = {
 
 type Kind = "broadcast" | "single" | "feedback_invite";
 
+type Audience = "all" | "never_messaged";
+
 type Body = {
   action?: "send" | "status";
   kind?: Kind;
   body?: string;
   patientId?: string;
+  audience?: Audience;
 };
 
 const MAX_PARTS = 3;
@@ -108,9 +111,42 @@ Deno.serve(async (req) => {
         recipients.push(...(data ?? []));
         if (!data || data.length < PAGE_SIZE) break;
       }
+
+      const audience: Audience =
+        payload.audience === "never_messaged" ? "never_messaged" : "all";
+      if (audience === "never_messaged") {
+        const priorIds = new Set<string>();
+        const priorPhones = new Set<string>();
+        for (let from = 0;; from += PAGE_SIZE) {
+          const { data, error } = await admin
+            .from("sms_recipients")
+            .select("patient_id, phone")
+            .eq("status", "sent")
+            .range(from, from + PAGE_SIZE - 1);
+          if (error) return json({ error: error.message }, 400);
+          for (const row of data ?? []) {
+            if (row.patient_id) priorIds.add(String(row.patient_id));
+            if (row.phone) priorPhones.add(String(row.phone));
+          }
+          if (!data || data.length < PAGE_SIZE) break;
+        }
+        recipients = recipients.filter(
+          (patient) => !priorIds.has(patient.id) && !priorPhones.has(patient.phone)
+        );
+      }
     }
 
-    if (!recipients.length) return json({ error: "No recipients to message." }, 400);
+    if (!recipients.length) {
+      return json(
+        {
+          error:
+            payload.audience === "never_messaged"
+              ? "No never-messaged patients are eligible."
+              : "No recipients to message.",
+        },
+        400
+      );
+    }
 
     const { data: msg, error: msgError } = await admin
       .from("sms_messages")
