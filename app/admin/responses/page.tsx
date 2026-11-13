@@ -1,18 +1,23 @@
 'use client';
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Suspense, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { BedDouble, Download, FileText, PhoneCall, Trash2, Users, X } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { createClient } from '@/lib/supabase/client';
 import {
   formatResponseDate,
-  hasNegativeReview,
   scoreForCare,
   shortRecommend,
   shortWait,
   type QuestionRow,
 } from '@/lib/feedback';
+import {
+  needsFollowUp,
+  readSeenUrgentIds,
+  writeSeenUrgentIds,
+} from '@/lib/follow-up';
 import { inpatientQuestionColumns } from '@/lib/inpatient-questions';
 import { cn } from '@/lib/utils';
 import {
@@ -85,23 +90,6 @@ type AdminResponse = {
 
 const ALL = 'all';
 const inpatientQuestions = inpatientQuestionColumns;
-const SEEN_URGENT_KEY = 'admin-seen-urgent-ids';
-
-function readSeenUrgentIds() {
-  if (typeof window === 'undefined') return [] as string[];
-  try {
-    const raw = window.localStorage.getItem(SEEN_URGENT_KEY);
-    const parsed = raw ? (JSON.parse(raw) as unknown) : [];
-    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeSeenUrgentIds(ids: string[]) {
-  if (typeof window === 'undefined') return;
-  window.localStorage.setItem(SEEN_URGENT_KEY, JSON.stringify(ids));
-}
 
 function displayAnswer(value: string) {
   const recommend = shortRecommend(value);
@@ -251,7 +239,22 @@ function scoreForResponse(row: AdminResponse, questions: QuestionRow[]) {
   return scoreForCare(row.answersByQuestionId[rating.id]);
 }
 
-export default function Responses() {
+export default function ResponsesPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="mx-auto max-w-[1400px] p-4 md:px-10 md:py-8">
+          <p className="text-sm text-muted-foreground">Loading responses…</p>
+        </main>
+      }
+    >
+      <Responses />
+    </Suspense>
+  );
+}
+
+function Responses() {
+  const searchParams = useSearchParams();
   const [questions, setQuestions] = useState<QuestionRow[]>([]);
   const [responses, setResponses] = useState<AdminResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -269,6 +272,13 @@ export default function Responses() {
   useEffect(() => {
     setSeenUrgentIds(readSeenUrgentIds());
   }, []);
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab === 'urgent' || tab === 'all') setActiveTab(tab);
+    const nextSource = searchParams.get('source');
+    if (nextSource === 'outpatient' || nextSource === 'inpatient') setSource(nextSource);
+  }, [searchParams]);
 
   const filterQuestions = useMemo(
     () => questions.filter((q) => q.question_type === 'rating' || q.question_type === 'choice'),
@@ -343,12 +353,19 @@ export default function Responses() {
 
   const urgentFiltered = useMemo(
     () =>
-      filtered.filter(
-        (row) =>
-          (!!row.contactPhone || !!row.contactEmail) &&
-          (row.source === 'inpatient'
-            ? hasNegativeReview(row.inpatientAnswers) || ['Unlikely', 'Very Unlikely'].includes(row.inpatientAnswers.recommend)
-            : hasNegativeReview(row.answersByQuestionId))
+      filtered.filter((row) =>
+        needsFollowUp({
+          id: row.submissionId,
+          source: row.source,
+          inpatient_answers: row.inpatientAnswers,
+          contact_email: row.contactEmail || null,
+          contact_phone: row.contactPhone || null,
+          created_at: row.createdAt,
+          answers: Object.entries(row.answersByQuestionId).map(([question_id, value]) => ({
+            question_id,
+            value,
+          })),
+        })
       ),
     [filtered]
   );
@@ -652,12 +669,20 @@ export default function Responses() {
               loading={loading}
               rows={visibleRows}
               totalCount={
-                responses.filter(
-                  (r) =>
-                    r.source === source && (!!r.contactPhone || !!r.contactEmail) &&
-                    (source === 'inpatient'
-                      ? hasNegativeReview(r.inpatientAnswers) || ['Unlikely', 'Very Unlikely'].includes(r.inpatientAnswers.recommend)
-                      : hasNegativeReview(r.answersByQuestionId))
+                responses.filter((r) =>
+                  r.source === source &&
+                  needsFollowUp({
+                    id: r.submissionId,
+                    source: r.source,
+                    inpatient_answers: r.inpatientAnswers,
+                    contact_email: r.contactEmail || null,
+                    contact_phone: r.contactPhone || null,
+                    created_at: r.createdAt,
+                    answers: Object.entries(r.answersByQuestionId).map(([question_id, value]) => ({
+                      question_id,
+                      value,
+                    })),
+                  })
                 ).length
               }
               emptyFilteredMessage="No urgent follow-ups match these filters."

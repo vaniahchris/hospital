@@ -33,6 +33,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
+import { FollowUpNotifications } from '@/components/admin/follow-up-notifications';
+import { PwaInstallHint } from '@/components/pwa-register';
 
 const links = [
   { href: '/admin', label: 'Overview', icon: LayoutDashboard },
@@ -150,6 +152,7 @@ export function AdminShell({
 
   const sidebarFooter = (
     <div className="mt-auto flex flex-col gap-3 p-4">
+      <PwaInstallHint />
       <Button variant="outline" className="w-full justify-between" asChild>
         <Link href="/" onClick={() => setMobileOpen(false)}>
           View feedback form
@@ -205,15 +208,18 @@ export function AdminShell({
             </small>
           </span>
         </Link>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon-sm"
-          onClick={() => setMobileOpen(true)}
-          aria-label="Open navigation"
-        >
-          <Menu />
-        </Button>
+        <div className="flex items-center gap-1">
+          <FollowUpNotifications />
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            onClick={() => setMobileOpen(true)}
+            aria-label="Open navigation"
+          >
+            <Menu />
+          </Button>
+        </div>
       </div>
 
       {mobileOpen ? (
@@ -273,10 +279,13 @@ export function AdminShell({
       <div className="min-w-0 bg-background">
         <header className="sticky top-0 z-10 hidden h-14 items-center justify-between border-b bg-background px-6 lg:px-10 md:flex">
           <h1 className="text-base font-semibold">{heading}</h1>
-          <Badge variant="secondary" className="gap-1.5 font-normal">
-            <span className="size-1.5 rounded-full bg-[oklch(0.62_0.08_195)]" />
-            Live
-          </Badge>
+          <div className="flex items-center gap-2">
+            <FollowUpNotifications />
+            <Badge variant="secondary" className="gap-1.5 font-normal">
+              <span className="size-1.5 rounded-full bg-[oklch(0.62_0.08_195)]" />
+              Live
+            </Badge>
+          </div>
         </header>
         {children}
       </div>
