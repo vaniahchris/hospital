@@ -71,6 +71,7 @@ type PatientForm = {
 
 type MessageHistoryFilter = 'all' | 'messaged' | 'never';
 
+const PAGE_SIZE = 10;
 const emptyForm: PatientForm = { name: '', phone: '', do_not_message: false };
 
 function csvEscape(value: string) {
@@ -86,6 +87,7 @@ export default function Patients() {
   const [lastMessagedByPhone, setLastMessagedByPhone] = useState<Record<string, string>>({});
   const [search, setSearch] = useState('');
   const [messageFilter, setMessageFilter] = useState<MessageHistoryFilter>('all');
+  const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
@@ -163,6 +165,21 @@ export default function Patients() {
       );
     });
   }, [patients, search, messageFilter, lastMessagedByPatientId, lastMessagedByPhone]);
+
+  const pageCount = Math.max(1, Math.ceil(filteredPatients.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount - 1);
+  const pagedPatients = useMemo(() => {
+    const start = safePage * PAGE_SIZE;
+    return filteredPatients.slice(start, start + PAGE_SIZE);
+  }, [filteredPatients, safePage]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [search, messageFilter]);
+
+  useEffect(() => {
+    if (page > pageCount - 1) setPage(Math.max(0, pageCount - 1));
+  }, [page, pageCount]);
 
   function openAdd() {
     setEditing(null);
@@ -472,7 +489,9 @@ export default function Patients() {
               <CardDescription>
                 {loading
                   ? 'Loading…'
-                  : `Showing ${filteredPatients.length} of ${patients.length} patients`}
+                  : filteredPatients.length
+                    ? `Showing ${safePage * PAGE_SIZE + 1}–${Math.min((safePage + 1) * PAGE_SIZE, filteredPatients.length)} of ${filteredPatients.length} patients`
+                    : `Showing 0 of ${patients.length} patients`}
               </CardDescription>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -535,7 +554,7 @@ export default function Patients() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredPatients.map((patient) => {
+                {pagedPatients.map((patient) => {
                   const last = lastMessagedAt(patient);
                   return (
                   <TableRow key={patient.id}>
@@ -594,6 +613,35 @@ export default function Patients() {
                       : 'No patients match your search.'
                   : 'No patients yet. Add one or import a CSV.'}
               </p>
+            ) : null}
+            {filteredPatients.length ? (
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-muted-foreground">
+                  Page {safePage + 1} of {pageCount}
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={safePage === 0}
+                    onClick={() => setPage((current) => Math.max(0, current - 1))}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={safePage >= pageCount - 1}
+                    onClick={() =>
+                      setPage((current) => Math.min(pageCount - 1, current + 1))
+                    }
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
             ) : null}
           </CardContent>
         </Card>
