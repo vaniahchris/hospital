@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Bell } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import {
+  markUrgentIdsSeen,
   needsFollowUp,
   readSeenUrgentIds,
   type FollowUpSubmission,
@@ -14,21 +15,46 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 const POLL_MS = 60_000;
-const PREVIEW_LIMIT = 5;
+const PREVIEW_LIMIT = 8;
 
 type PreviewItem = {
   id: string;
   source: 'outpatient' | 'inpatient';
   createdAt: string;
   contact: string;
+  unseen: boolean;
 };
 
 export function FollowUpNotifications({ className }: { className?: string }) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<PreviewItem[]>([]);
+  const [followUpIds, setFollowUpIds] = useState<string[]>([]);
   const [unseenCount, setUnseenCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const panelRef = useRef<HTMLDivElement>(null);
+  const followUpIdsRef = useRef<string[]>([]);
+
+  const applyRows = useCallback((rows: FollowUpSubmission[]) => {
+    const followUps = rows.filter(needsFollowUp);
+    const seen = new Set(readSeenUrgentIds());
+    const ids = followUps.map((row) => row.id);
+    followUpIdsRef.current = ids;
+    setFollowUpIds(ids);
+
+    const unseen = followUps.filter((row) => !seen.has(row.id));
+    setUnseenCount(unseen.length);
+
+    const previewSource = unseen.length ? unseen : followUps;
+    setItems(
+      previewSource.slice(0, PREVIEW_LIMIT).map((row) => ({
+        id: row.id,
+        source: row.source,
+        createdAt: row.created_at,
+        contact: row.contact_phone?.trim() || row.contact_email?.trim() || '—',
+        unseen: !seen.has(row.id),
+      }))
+    );
+  }, []);
 
   const refresh = useCallback(async () => {
     const supabase = createClient();
@@ -37,37 +63,23 @@ export function FollowUpNotifications({ className }: { className?: string }) {
       .select(
         'id, source, inpatient_answers, contact_email, contact_phone, created_at, answers(value, question_id)'
       )
-      .order('created_at', { ascending: false })
-      .limit(200);
+      .order('created_at', { ascending: false });
 
     if (error) {
       setLoading(false);
       return;
     }
 
-    const rows = (data as FollowUpSubmission[] | null) ?? [];
-    const followUps = rows.filter(needsFollowUp);
-    const seen = new Set(readSeenUrgentIds());
-    const unseen = followUps.filter((row) => !seen.has(row.id));
-
-    setUnseenCount(unseen.length);
-    setItems(
-      (unseen.length ? unseen : followUps).slice(0, PREVIEW_LIMIT).map((row) => ({
-        id: row.id,
-        source: row.source,
-        createdAt: row.created_at,
-        contact: row.contact_phone?.trim() || row.contact_email?.trim() || '—',
-      }))
-    );
+    applyRows((data as FollowUpSubmission[] | null) ?? []);
     setLoading(false);
-  }, []);
+  }, [applyRows]);
 
   useEffect(() => {
     refresh();
     const timer = window.setInterval(refresh, POLL_MS);
     const onFocus = () => refresh();
     const onStorage = (event: StorageEvent) => {
-      if (event.key === 'admin-seen-urgent-ids') refresh();
+      if (event.key === 'admin-follow-up-seen-ids') refresh();
     };
     window.addEventListener('focus', onFocus);
     window.addEventListener('storage', onStorage);
@@ -96,13 +108,42 @@ export function FollowUpNotifications({ className }: { className?: string }) {
     };
   }, [open]);
 
+  function markAllCurrentSeen() {
+    const ids = followUpIdsRef.current.length ? followUpIdsRef.current : followUpIds;
+    if (!ids.length) {
+      setUnseenCount(0);
+      return;
+    }
+    markUrgentIdsSeen(ids);
+    setUnseenCount(0);
+    setItems((current) => current.map((item) => ({ ...item, unseen: false })));
+  }
+
+  function markOneSeen(id: string) {
+    markUrgentIdsSeen([id]);
+    setUnseenCount((count) => Math.max(0, count - 1));
+    setItems((current) =>
+      current.map((item) => (item.id === id ? { ...item, unseen: false } : item))
+    );
+  }
+
+  function toggleOpen() {
+    if (!open) {
+      // Opening the inbox acknowledges current follow-ups → badge clears.
+      markAllCurrentSeen();
+      setOpen(true);
+      return;
+    }
+    setOpen(false);
+  }
+
   const badgeLabel = useMemo(() => {
     if (unseenCount <= 0) return null;
     return unseenCount > 9 ? '9+' : String(unseenCount);
   }, [unseenCount]);
 
   return (
-    <div ref={panelRef} className={cn('relative', className)}>
+    <div ref={panelRef} className={cn('relative overflow-visible', className)}>
       <Button
         type="button"
         variant="ghost"
@@ -114,12 +155,12 @@ export function FollowUpNotifications({ className }: { className?: string }) {
         }
         aria-expanded={open}
         aria-haspopup="dialog"
-        onClick={() => setOpen((current) => !current)}
-        className="relative"
+        onClick={toggleOpen}
+        className="relative overflow-visible"
       >
         <Bell className="size-4" />
         {badgeLabel ? (
-          <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-white">
+          <span className="pointer-events-none absolute -top-1 -right-1 z-10 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] leading-none font-semibold text-white shadow-sm">
             {badgeLabel}
           </span>
         ) : null}
@@ -146,7 +187,10 @@ export function FollowUpNotifications({ className }: { className?: string }) {
                   <li key={item.id}>
                     <Link
                       href={`/admin/responses?tab=urgent&source=${item.source}`}
-                      onClick={() => setOpen(false)}
+                      onClick={() => {
+                        markOneSeen(item.id);
+                        setOpen(false);
+                      }}
                       className="block px-3 py-2.5 text-sm transition-colors hover:bg-muted/60"
                     >
                       <div className="flex items-center justify-between gap-2">
@@ -172,7 +216,10 @@ export function FollowUpNotifications({ className }: { className?: string }) {
             <Button variant="outline" size="sm" className="w-full" asChild>
               <Link
                 href="/admin/responses?tab=urgent"
-                onClick={() => setOpen(false)}
+                onClick={() => {
+                  markAllCurrentSeen();
+                  setOpen(false);
+                }}
               >
                 Open follow-ups
               </Link>

@@ -14,9 +14,9 @@ import {
   type QuestionRow,
 } from '@/lib/feedback';
 import {
+  markUrgentIdsSeen,
   needsFollowUp,
   readSeenUrgentIds,
-  writeSeenUrgentIds,
 } from '@/lib/follow-up';
 import { inpatientQuestionColumns } from '@/lib/inpatient-questions';
 import { cn } from '@/lib/utils';
@@ -381,10 +381,9 @@ function Responses() {
     if (activeTab !== 'urgent' || !urgentFiltered.length) return;
     const currentIds = urgentFiltered.map((row) => row.submissionId);
     setSeenUrgentIds((prev) => {
-      const next = [...new Set([...prev, ...currentIds])];
-      if (next.length === prev.length && next.every((id, index) => id === prev[index])) return prev;
-      writeSeenUrgentIds(next);
-      return next;
+      const alreadySeen = currentIds.every((id) => prev.includes(id));
+      if (alreadySeen) return prev;
+      return markUrgentIdsSeen(currentIds);
     });
   }, [activeTab, urgentFiltered]);
 

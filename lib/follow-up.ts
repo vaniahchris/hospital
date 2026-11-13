@@ -1,6 +1,7 @@
 import { hasNegativeReview } from '@/lib/feedback';
 
-export const SEEN_URGENT_KEY = 'admin-seen-urgent-ids';
+/** Ack list for follow-up badge / inbox. Bumped key so prior auto-mark-all state does not hide the badge. */
+export const SEEN_URGENT_KEY = 'admin-follow-up-seen-ids';
 
 export type FollowUpSubmission = {
   id: string;
@@ -29,6 +30,14 @@ export function writeSeenUrgentIds(ids: string[]) {
   if (typeof window === 'undefined') return;
   window.localStorage.setItem(SEEN_URGENT_KEY, JSON.stringify(ids));
   window.dispatchEvent(new Event('follow-up-seen'));
+}
+
+/** Merge ids into the seen list and persist. Returns the full seen list. */
+export function markUrgentIdsSeen(ids: string[]) {
+  if (typeof window === 'undefined' || !ids.length) return readSeenUrgentIds();
+  const next = [...new Set([...readSeenUrgentIds(), ...ids])];
+  writeSeenUrgentIds(next);
+  return next;
 }
 
 export function answersByQuestionId(
