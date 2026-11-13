@@ -192,7 +192,7 @@ export function AdminShell({
   return (
     <div className="min-h-svh bg-background md:grid md:grid-cols-[220px_1fr]">
       {/* Mobile top bar only — menu opens as overlay drawer */}
-      <div className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b bg-background px-4 py-3 md:hidden">
+      <div className="sticky top-0 z-30 flex items-center justify-between gap-3 overflow-visible border-b bg-background px-4 py-3 md:hidden">
         <Link href="/" className="flex min-w-0 items-center gap-3 text-primary">
           <img
             src="/value-family-hospital-logo.png"
@@ -208,7 +208,7 @@ export function AdminShell({
             </small>
           </span>
         </Link>
-        <div className="flex items-center gap-1">
+        <div className="flex shrink-0 items-center gap-2 overflow-visible pr-0.5">
           <FollowUpNotifications />
           <Button
             type="button"

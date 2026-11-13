@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Bell } from 'lucide-react';
+import { Bell, CheckCheck, X } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import {
   markUrgentIdsSeen,
   needsFollowUp,
   readSeenUrgentIds,
+  SEEN_URGENT_KEY,
   type FollowUpSubmission,
 } from '@/lib/follow-up';
 import { formatResponseDate } from '@/lib/feedback';
@@ -79,7 +80,7 @@ export function FollowUpNotifications({ className }: { className?: string }) {
     const timer = window.setInterval(refresh, POLL_MS);
     const onFocus = () => refresh();
     const onStorage = (event: StorageEvent) => {
-      if (event.key === 'admin-follow-up-seen-ids') refresh();
+      if (event.key === SEEN_URGENT_KEY) refresh();
     };
     window.addEventListener('focus', onFocus);
     window.addEventListener('storage', onStorage);
@@ -108,7 +109,18 @@ export function FollowUpNotifications({ className }: { className?: string }) {
     };
   }, [open]);
 
-  function markAllCurrentSeen() {
+  useEffect(() => {
+    if (!open) return;
+    const previous = document.body.style.overflow;
+    // Only lock scroll on small screens where the sheet covers content.
+    const mq = window.matchMedia('(max-width: 767px)');
+    if (mq.matches) document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [open]);
+
+  function markAllAsRead() {
     const ids = followUpIdsRef.current.length ? followUpIdsRef.current : followUpIds;
     if (!ids.length) {
       setUnseenCount(0);
@@ -127,20 +139,110 @@ export function FollowUpNotifications({ className }: { className?: string }) {
     );
   }
 
-  function toggleOpen() {
-    if (!open) {
-      // Opening the inbox acknowledges current follow-ups → badge clears.
-      markAllCurrentSeen();
-      setOpen(true);
-      return;
-    }
-    setOpen(false);
-  }
-
   const badgeLabel = useMemo(() => {
     if (unseenCount <= 0) return null;
     return unseenCount > 9 ? '9+' : String(unseenCount);
   }, [unseenCount]);
+
+  const panel = (
+    <div
+      role="dialog"
+      aria-label="Follow-up notifications"
+      className={cn(
+        'flex max-h-[min(32rem,calc(100svh-5rem))] flex-col overflow-hidden rounded-lg border bg-background shadow-lg',
+        // Mobile: fixed sheet under the top bar, inset from screen edges
+        'fixed top-14 right-3 left-3 z-50',
+        // Desktop: dropdown anchored to the bell
+        'md:absolute md:top-full md:right-0 md:left-auto md:mt-2 md:w-[22rem]'
+      )}
+    >
+      <div className="flex items-start justify-between gap-2 border-b px-3 py-2.5">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold">Needs follow-up</p>
+          <p className="text-xs text-muted-foreground">
+            Negative responses with contact details
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          {unseenCount > 0 ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="hidden h-7 px-2 text-xs sm:inline-flex"
+              onClick={markAllAsRead}
+            >
+              <CheckCheck className="size-3.5" data-icon="inline-start" />
+              Mark all read
+            </Button>
+          ) : null}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="md:hidden"
+            aria-label="Close notifications"
+            onClick={() => setOpen(false)}
+          >
+            <X className="size-4" />
+          </Button>
+        </div>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        {loading ? (
+          <p className="px-3 py-6 text-center text-sm text-muted-foreground">Loading…</p>
+        ) : items.length ? (
+          <ul className="divide-y">
+            {items.map((item) => (
+              <li key={item.id}>
+                <Link
+                  href={`/admin/responses?tab=urgent&source=${item.source}`}
+                  onClick={() => {
+                    markOneSeen(item.id);
+                    setOpen(false);
+                  }}
+                  className="block px-3 py-2.5 text-sm transition-colors hover:bg-muted/60"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex min-w-0 items-center gap-2 font-medium capitalize">
+                      {item.unseen ? (
+                        <span
+                          className="size-1.5 shrink-0 rounded-full bg-destructive"
+                          aria-hidden
+                        />
+                      ) : null}
+                      {item.source}
+                    </span>
+                    <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                      {formatResponseDate(item.createdAt)}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground">{item.contact}</p>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="px-3 py-6 text-center text-sm text-muted-foreground">
+            No follow-ups waiting.
+          </p>
+        )}
+      </div>
+      <div className="flex flex-col gap-2 border-t p-2">
+        {unseenCount > 0 ? (
+          <Button type="button" variant="secondary" size="sm" className="w-full" onClick={markAllAsRead}>
+            <CheckCheck className="size-3.5" data-icon="inline-start" />
+            Clear notifications
+          </Button>
+        ) : null}
+        <Button variant="outline" size="sm" className="w-full" asChild>
+          <Link href="/admin/responses?tab=urgent" onClick={() => setOpen(false)}>
+            Open follow-ups
+          </Link>
+        </Button>
+      </div>
+    </div>
+  );
 
   return (
     <div ref={panelRef} className={cn('relative overflow-visible', className)}>
@@ -155,77 +257,28 @@ export function FollowUpNotifications({ className }: { className?: string }) {
         }
         aria-expanded={open}
         aria-haspopup="dialog"
-        onClick={toggleOpen}
+        onClick={() => setOpen((current) => !current)}
         className="relative overflow-visible"
       >
         <Bell className="size-4" />
         {badgeLabel ? (
-          <span className="pointer-events-none absolute -top-1 -right-1 z-10 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] leading-none font-semibold text-white shadow-sm">
+          <span className="pointer-events-none absolute top-0 right-0 z-10 flex h-4 min-w-4 translate-x-1/3 -translate-y-1/3 items-center justify-center rounded-full bg-destructive px-1 text-[10px] leading-none font-semibold text-white shadow-sm ring-2 ring-background">
             {badgeLabel}
           </span>
         ) : null}
       </Button>
 
       {open ? (
-        <div
-          role="dialog"
-          aria-label="Follow-up notifications"
-          className="absolute top-full right-0 z-50 mt-2 w-[min(22rem,calc(100vw-2rem))] rounded-lg border bg-background shadow-lg"
-        >
-          <div className="border-b px-3 py-2.5">
-            <p className="text-sm font-semibold">Needs follow-up</p>
-            <p className="text-xs text-muted-foreground">
-              Negative responses with contact details
-            </p>
-          </div>
-          <div className="max-h-72 overflow-y-auto">
-            {loading ? (
-              <p className="px-3 py-6 text-center text-sm text-muted-foreground">Loading…</p>
-            ) : items.length ? (
-              <ul className="divide-y">
-                {items.map((item) => (
-                  <li key={item.id}>
-                    <Link
-                      href={`/admin/responses?tab=urgent&source=${item.source}`}
-                      onClick={() => {
-                        markOneSeen(item.id);
-                        setOpen(false);
-                      }}
-                      className="block px-3 py-2.5 text-sm transition-colors hover:bg-muted/60"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-medium capitalize">{item.source}</span>
-                        <span className="text-xs text-muted-foreground tabular-nums">
-                          {formatResponseDate(item.createdAt)}
-                        </span>
-                      </div>
-                      <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                        {item.contact}
-                      </p>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="px-3 py-6 text-center text-sm text-muted-foreground">
-                No follow-ups waiting.
-              </p>
-            )}
-          </div>
-          <div className="border-t p-2">
-            <Button variant="outline" size="sm" className="w-full" asChild>
-              <Link
-                href="/admin/responses?tab=urgent"
-                onClick={() => {
-                  markAllCurrentSeen();
-                  setOpen(false);
-                }}
-              >
-                Open follow-ups
-              </Link>
-            </Button>
-          </div>
-        </div>
+        <>
+          {/* Mobile scrim so the sheet reads as a modal and taps outside close it */}
+          <button
+            type="button"
+            className="fixed inset-0 z-40 bg-foreground/20 md:hidden"
+            aria-label="Close notifications"
+            onClick={() => setOpen(false)}
+          />
+          {panel}
+        </>
       ) : null}
     </div>
   );
