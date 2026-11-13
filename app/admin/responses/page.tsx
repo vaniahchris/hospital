@@ -13,6 +13,7 @@ import {
   shortWait,
   type QuestionRow,
 } from '@/lib/feedback';
+import { inpatientQuestionColumns } from '@/lib/inpatient-questions';
 import { cn } from '@/lib/utils';
 import {
   AlertDialog,
@@ -83,12 +84,7 @@ type AdminResponse = {
 };
 
 const ALL = 'all';
-const inpatientQuestions = [
-  { id: 'care', prompt: 'Quality of care' },
-  { id: 'staff', prompt: 'Staff' },
-  { id: 'room', prompt: 'Room' },
-  { id: 'recommend', prompt: 'Recommend' },
-];
+const inpatientQuestions = inpatientQuestionColumns;
 const SEEN_URGENT_KEY = 'admin-seen-urgent-ids';
 
 function readSeenUrgentIds() {
@@ -285,7 +281,12 @@ export default function Responses() {
     const supabase = createClient();
 
     const [questionsResult, submissionsResult] = await Promise.all([
-      supabase.from('questions').select('*').eq('is_active', true).order('sort_order', { ascending: true }),
+      supabase
+        .from('questions')
+        .select('*')
+        .eq('form_source', 'outpatient')
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true }),
       supabase
         .from('submissions')
         .select(

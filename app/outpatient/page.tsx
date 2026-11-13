@@ -93,6 +93,7 @@ export default function Home() {
       const { data, error } = await supabase
         .from('questions')
         .select('*')
+        .eq('form_source', 'outpatient')
         .eq('is_active', true)
         .order('sort_order', { ascending: true });
 

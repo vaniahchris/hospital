@@ -118,6 +118,7 @@ export default function AdminOverview() {
         supabase
           .from('questions')
           .select('*')
+          .eq('form_source', 'outpatient')
           .eq('is_active', true)
           .order('sort_order', { ascending: true }),
         supabase

@@ -3,6 +3,8 @@ export type QuestionOption = {
   icon?: string
 }
 
+export type FormSource = 'outpatient' | 'inpatient'
+
 export type QuestionRow = {
   id: string
   prompt: string
@@ -11,6 +13,8 @@ export type QuestionRow = {
   sort_order: number
   is_active: boolean
   is_required: boolean
+  form_source?: FormSource
+  slug?: string | null
 }
 
 export type ResponseRow = {
