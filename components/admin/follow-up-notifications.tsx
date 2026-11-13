@@ -23,7 +23,6 @@ type PreviewItem = {
   source: 'outpatient' | 'inpatient';
   createdAt: string;
   contact: string;
-  unseen: boolean;
 };
 
 export function FollowUpNotifications({ className }: { className?: string }) {
@@ -37,20 +36,16 @@ export function FollowUpNotifications({ className }: { className?: string }) {
   const applyRows = useCallback((rows: FollowUpSubmission[]) => {
     const followUps = rows.filter(needsFollowUp);
     const seen = new Set(readSeenUrgentIds());
-    const ids = followUps.map((row) => row.id);
-    followUpIdsRef.current = ids;
-
+    // Panel only shows new/unread alerts so Clear is always meaningful.
     const unseen = followUps.filter((row) => !seen.has(row.id));
+    followUpIdsRef.current = unseen.map((row) => row.id);
     setUnseenCount(unseen.length);
-
-    const previewSource = unseen.length ? unseen : followUps;
     setItems(
-      previewSource.slice(0, PREVIEW_LIMIT).map((row) => ({
+      unseen.slice(0, PREVIEW_LIMIT).map((row) => ({
         id: row.id,
         source: row.source,
         createdAt: row.created_at,
         contact: row.contact_phone?.trim() || row.contact_email?.trim() || '—',
-        unseen: !seen.has(row.id),
       }))
     );
   }, []);
@@ -121,23 +116,19 @@ export function FollowUpNotifications({ className }: { className?: string }) {
     };
   }, [open]);
 
-  const markAllAsRead = useCallback(() => {
+  const clearNotifications = useCallback(() => {
     const ids = followUpIdsRef.current;
-    if (!ids.length) {
-      setUnseenCount(0);
-      return;
-    }
-    markUrgentIdsSeen(ids);
+    if (ids.length) markUrgentIdsSeen(ids);
+    followUpIdsRef.current = [];
     setUnseenCount(0);
-    setItems((current) => current.map((item) => ({ ...item, unseen: false })));
+    setItems([]);
   }, []);
 
   const markOneSeen = useCallback((id: string) => {
     markUrgentIdsSeen([id]);
+    followUpIdsRef.current = followUpIdsRef.current.filter((itemId) => itemId !== id);
     setUnseenCount((count) => Math.max(0, count - 1));
-    setItems((current) =>
-      current.map((item) => (item.id === id ? { ...item, unseen: false } : item))
-    );
+    setItems((current) => current.filter((item) => item.id !== id));
   }, []);
 
   const badgeLabel = useMemo(() => {
@@ -191,19 +182,35 @@ export function FollowUpNotifications({ className }: { className?: string }) {
               <div className="min-w-0">
                 <p className="text-sm font-semibold">Needs follow-up</p>
                 <p className="text-xs text-muted-foreground">
-                  Negative responses with contact details
+                  {unseenCount > 0
+                    ? `${unseenCount} new alert${unseenCount === 1 ? '' : 's'}`
+                    : 'Negative responses with contact details'}
                 </p>
               </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="shrink-0 md:hidden"
-                aria-label="Close notifications"
-                onClick={() => setOpen(false)}
-              >
-                <X className="size-4" />
-              </Button>
+              <div className="flex shrink-0 items-center gap-1">
+                {unseenCount > 0 ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={clearNotifications}
+                  >
+                    <CheckCheck className="size-3.5" data-icon="inline-start" />
+                    Clear
+                  </Button>
+                ) : null}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="md:hidden"
+                  aria-label="Close notifications"
+                  onClick={() => setOpen(false)}
+                >
+                  <X className="size-4" />
+                </Button>
+              </div>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
               {loading ? (
@@ -222,12 +229,10 @@ export function FollowUpNotifications({ className }: { className?: string }) {
                       >
                         <div className="flex items-center justify-between gap-2">
                           <span className="flex min-w-0 items-center gap-2 font-medium capitalize">
-                            {item.unseen ? (
-                              <span
-                                className="size-1.5 shrink-0 rounded-full bg-destructive"
-                                aria-hidden
-                              />
-                            ) : null}
+                            <span
+                              className="size-1.5 shrink-0 rounded-full bg-destructive"
+                              aria-hidden
+                            />
                             {item.source}
                           </span>
                           <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
@@ -243,22 +248,21 @@ export function FollowUpNotifications({ className }: { className?: string }) {
                 </ul>
               ) : (
                 <p className="px-3 py-6 text-center text-sm text-muted-foreground">
-                  No follow-ups waiting.
+                  No new follow-up alerts.
                 </p>
               )}
             </div>
             <div className="flex flex-col gap-2 border-t p-2">
-              {items.length ? (
+              {unseenCount > 0 ? (
                 <Button
                   type="button"
                   variant="secondary"
                   size="sm"
                   className="w-full"
-                  disabled={unseenCount <= 0}
-                  onClick={markAllAsRead}
+                  onClick={clearNotifications}
                 >
                   <CheckCheck className="size-3.5" data-icon="inline-start" />
-                  {unseenCount > 0 ? 'Mark all as read' : 'All caught up'}
+                  Clear notifications
                 </Button>
               ) : null}
               <Button variant="outline" size="sm" className="w-full" asChild>
