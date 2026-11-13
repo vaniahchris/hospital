@@ -163,30 +163,16 @@ export function FollowUpNotifications({ className }: { className?: string }) {
             Negative responses with contact details
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-1">
-          {unseenCount > 0 ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="hidden h-7 px-2 text-xs sm:inline-flex"
-              onClick={markAllAsRead}
-            >
-              <CheckCheck className="size-3.5" data-icon="inline-start" />
-              Mark all read
-            </Button>
-          ) : null}
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="md:hidden"
-            aria-label="Close notifications"
-            onClick={() => setOpen(false)}
-          >
-            <X className="size-4" />
-          </Button>
-        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="shrink-0 md:hidden"
+          aria-label="Close notifications"
+          onClick={() => setOpen(false)}
+        >
+          <X className="size-4" />
+        </Button>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         {loading ? (
@@ -229,10 +215,17 @@ export function FollowUpNotifications({ className }: { className?: string }) {
         )}
       </div>
       <div className="flex flex-col gap-2 border-t p-2">
-        {unseenCount > 0 ? (
-          <Button type="button" variant="secondary" size="sm" className="w-full" onClick={markAllAsRead}>
+        {items.length ? (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="w-full"
+            disabled={unseenCount <= 0}
+            onClick={markAllAsRead}
+          >
             <CheckCheck className="size-3.5" data-icon="inline-start" />
-            Clear notifications
+            {unseenCount > 0 ? 'Mark all as read' : 'All caught up'}
           </Button>
         ) : null}
         <Button variant="outline" size="sm" className="w-full" asChild>
