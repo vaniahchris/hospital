@@ -342,7 +342,7 @@ export default function AdminOverview() {
         </Button>
       </div>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <section className="grid grid-cols-2 gap-3 xl:grid-cols-3">
         {metrics.map(([icon, label, value, sub]) => {
           const Icon = metricIcons[icon];
           const isBalance = icon === 'wallet';
