@@ -375,6 +375,8 @@ export default function AdminOverview() {
           const Icon = metricIcons[metric.icon];
           const isBalance = metric.icon === 'wallet';
           const showSkeleton = isBalance ? balanceLoading : loading;
+          const cardMotion =
+            'h-full transition-[transform,box-shadow,border-color,background-color] duration-200 ease-[var(--ease-out)] will-change-transform hover:-translate-y-0.5 hover:border-primary/25 hover:bg-accent/40 hover:shadow-sm active:scale-[0.97] active:shadow-none';
           const body = (
             <CardContent className="space-y-2">
               <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -404,7 +406,7 @@ export default function AdminOverview() {
               >
                 <Card
                   size="sm"
-                  className="h-full transition-[transform,box-shadow,border-color,background-color] duration-200 ease-[var(--ease-out)] will-change-transform group-hover:-translate-y-0.5 group-hover:border-primary/25 group-hover:bg-accent/40 group-hover:shadow-sm group-active:scale-[0.97] group-active:shadow-none"
+                  className={`${cardMotion} group-hover:-translate-y-0.5 group-hover:border-primary/25 group-hover:bg-accent/40 group-hover:shadow-sm group-active:scale-[0.97] group-active:shadow-none`}
                 >
                   {body}
                 </Card>
@@ -413,7 +415,7 @@ export default function AdminOverview() {
           }
 
           return (
-            <Card key={metric.label} size="sm">
+            <Card key={metric.label} size="sm" className={cardMotion}>
               {body}
             </Card>
           );
@@ -486,7 +488,7 @@ function QuestionBreakdownCard({ stats }: { stats: QuestionStats }) {
   const maxCount = Math.max(...options.map((option) => option.count), 1);
 
   return (
-    <Card>
+    <Card className="transition-[transform,box-shadow,border-color,background-color] duration-200 ease-[var(--ease-out)] will-change-transform hover:-translate-y-0.5 hover:border-primary/25 hover:bg-accent/20 hover:shadow-sm active:scale-[0.985] active:shadow-none">
       <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
         <div className="min-w-0">
           <CardTitle className="text-base leading-snug" title={question.prompt}>
