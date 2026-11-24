@@ -289,36 +289,64 @@ export default function AdminOverview() {
 
   const questionStats = breakdownSource === 'inpatient' ? inpatientStats : outpatientStats;
 
+  const monthStart = monthStartIso();
   const metrics = useMemo(
     () =>
       [
-        ['responses', 'Outpatient responses', String(total), 'All time'],
-        ['responses', 'Inpatient responses', String(inpatientCount), 'All time'],
-        [
-          'people',
-          'This month',
-          String(monthCount),
-          `${nowMonthLabel()} · ${monthOutpatientCount} out · ${monthInpatientCount} in`,
-        ],
-        ['dashboard', 'Avg rating', average ? average.toFixed(1) : '—', 'Across rating questions'],
-        ['questions', 'Recommend us', total ? `${recommendPct}%` : '—', 'Yes answers'],
-        [
-          'wallet',
-          'SMS balance',
-          balanceLoading ? '…' : atBalance ?? '—',
-          atBalanceError
+        {
+          icon: 'responses' as const,
+          label: 'Outpatient responses',
+          value: String(total),
+          sub: 'All time',
+          href: '/admin/responses?source=outpatient',
+        },
+        {
+          icon: 'responses' as const,
+          label: 'Inpatient responses',
+          value: String(inpatientCount),
+          sub: 'All time',
+          href: '/admin/responses?source=inpatient',
+        },
+        {
+          icon: 'people' as const,
+          label: 'This month',
+          value: String(monthCount),
+          sub: `${nowMonthLabel()} · ${monthOutpatientCount} out · ${monthInpatientCount} in`,
+          href: `/admin/responses?source=outpatient&start=${monthStart}`,
+        },
+        {
+          icon: 'dashboard' as const,
+          label: 'Avg rating',
+          value: average ? average.toFixed(1) : '—',
+          sub: 'Across rating questions',
+          href: null,
+        },
+        {
+          icon: 'questions' as const,
+          label: 'Recommend us',
+          value: total ? `${recommendPct}%` : '—',
+          sub: 'Yes answers',
+          href: null,
+        },
+        {
+          icon: 'wallet' as const,
+          label: 'SMS balance',
+          value: balanceLoading ? '…' : atBalance ?? '—',
+          sub: atBalanceError
             ? 'Could not load from Africa\'s Talking'
             : atSandbox
               ? 'Africa\'s Talking sandbox'
               : 'Africa\'s Talking account',
-        ],
-      ] as const,
+          href: null,
+        },
+      ],
     [
       total,
       inpatientCount,
       monthCount,
       monthOutpatientCount,
       monthInpatientCount,
+      monthStart,
       average,
       recommendPct,
       atBalance,
@@ -343,29 +371,50 @@ export default function AdminOverview() {
       </div>
 
       <section className="grid grid-cols-2 gap-3 xl:grid-cols-3">
-        {metrics.map(([icon, label, value, sub]) => {
-          const Icon = metricIcons[icon];
-          const isBalance = icon === 'wallet';
+        {metrics.map((metric) => {
+          const Icon = metricIcons[metric.icon];
+          const isBalance = metric.icon === 'wallet';
           const showSkeleton = isBalance ? balanceLoading : loading;
-          return (
-            <Card key={label} size="sm">
-              <CardContent className="space-y-2">
-                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <Icon className="size-3.5 shrink-0" />
-                  {label}
+          const body = (
+            <CardContent className="space-y-2">
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Icon className="size-3.5 shrink-0" />
+                {metric.label}
+              </p>
+              {showSkeleton ? (
+                <Skeleton className="h-7 w-14" />
+              ) : (
+                <p
+                  className="text-2xl font-semibold tabular-nums tracking-tight"
+                  title={isBalance && atBalanceError ? atBalanceError : undefined}
+                >
+                  {metric.value}
                 </p>
-                {showSkeleton ? (
-                  <Skeleton className="h-7 w-14" />
-                ) : (
-                  <p
-                    className="text-2xl font-semibold tabular-nums tracking-tight"
-                    title={isBalance && atBalanceError ? atBalanceError : undefined}
-                  >
-                    {value}
-                  </p>
-                )}
-                <p className="text-[11px] text-muted-foreground">{sub}</p>
-              </CardContent>
+              )}
+              <p className="text-[11px] text-muted-foreground">{metric.sub}</p>
+            </CardContent>
+          );
+
+          if (metric.href) {
+            return (
+              <Link
+                key={metric.label}
+                href={metric.href}
+                className="group block rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <Card
+                  size="sm"
+                  className="h-full transition-[transform,box-shadow,border-color,background-color] duration-200 ease-[var(--ease-out)] will-change-transform group-hover:-translate-y-0.5 group-hover:border-primary/25 group-hover:bg-accent/40 group-hover:shadow-sm group-active:scale-[0.97] group-active:shadow-none"
+                >
+                  {body}
+                </Card>
+              </Link>
+            );
+          }
+
+          return (
+            <Card key={metric.label} size="sm">
+              {body}
             </Card>
           );
         })}
@@ -512,4 +561,10 @@ function QuestionBreakdownCard({ stats }: { stats: QuestionStats }) {
 
 function nowMonthLabel() {
   return new Date().toLocaleString('en', { month: 'long' });
+}
+
+function monthStartIso() {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  return `${now.getFullYear()}-${month}-01`;
 }

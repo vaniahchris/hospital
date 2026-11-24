@@ -34,6 +34,9 @@
   --chart-4: oklch(0.55 0.04 250);
   --chart-5: oklch(0.78 0.03 250);
   --radius: 0.5rem;
+  /* Emil Kowalski — strong ease-out for press/hover feedback */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --sidebar: oklch(1 0 0);
   --sidebar-foreground: oklch(0.38 0.03 260);
   --sidebar-primary: oklch(0.35 0.09 265);

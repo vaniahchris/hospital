@@ -281,6 +281,10 @@ function Responses() {
     if (tab === 'urgent' || tab === 'all') setActiveTab(tab);
     const nextSource = searchParams.get('source');
     if (nextSource === 'outpatient' || nextSource === 'inpatient') setSource(nextSource);
+    const start = searchParams.get('start');
+    const end = searchParams.get('end');
+    if (start && /^\d{4}-\d{2}-\d{2}$/.test(start)) setStartDate(start);
+    if (end && /^\d{4}-\d{2}-\d{2}$/.test(end)) setEndDate(end);
   }, [searchParams]);
 
   const filterQuestions = useMemo(
