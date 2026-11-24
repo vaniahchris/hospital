@@ -8,11 +8,20 @@ import {
   scoreForCare,
   shortRecommend,
   shortWait,
+  type FormSource,
   type QuestionRow,
 } from '@/lib/feedback';
+import { INPATIENT_QUESTION_DEFS } from '@/lib/inpatient-questions';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 
 type AnswerJoin = {
@@ -24,6 +33,7 @@ type AnswerJoin = {
 type SubmissionJoin = {
   id: string;
   source: 'outpatient' | 'inpatient';
+  inpatient_answers: Record<string, string> | null;
   created_at: string;
   answers: AnswerJoin[];
 };
@@ -110,6 +120,29 @@ function buildQuestionStats(question: QuestionRow, values: string[]): QuestionSt
   };
 }
 
+function inpatientFallbackQuestions(): QuestionRow[] {
+  return INPATIENT_QUESTION_DEFS.map((question, index) => ({
+    id: question.slug,
+    prompt: question.prompt,
+    question_type: question.question_type,
+    options: question.options,
+    sort_order: index + 1,
+    is_active: true,
+    is_required: true,
+    form_source: 'inpatient',
+    slug: question.slug,
+  }));
+}
+
+function statsForQuestions(
+  questions: QuestionRow[],
+  answersByQuestionId: Record<string, string[]>
+): QuestionStats[] {
+  return questions.map((question) =>
+    buildQuestionStats(question, answersByQuestionId[question.id] ?? [])
+  );
+}
+
 export default function AdminOverview() {
   const [total, setTotal] = useState(0);
   const [inpatientCount, setInpatientCount] = useState(0);
@@ -118,7 +151,9 @@ export default function AdminOverview() {
   const [monthInpatientCount, setMonthInpatientCount] = useState(0);
   const [average, setAverage] = useState(0);
   const [recommendPct, setRecommendPct] = useState(0);
-  const [questionStats, setQuestionStats] = useState<QuestionStats[]>([]);
+  const [outpatientStats, setOutpatientStats] = useState<QuestionStats[]>([]);
+  const [inpatientStats, setInpatientStats] = useState<QuestionStats[]>([]);
+  const [breakdownSource, setBreakdownSource] = useState<FormSource>('outpatient');
   const [loading, setLoading] = useState(true);
   const [atBalance, setAtBalance] = useState<string | null>(null);
   const [atBalanceError, setAtBalanceError] = useState('');
@@ -128,23 +163,30 @@ export default function AdminOverview() {
   useEffect(() => {
     const supabase = createClient();
     async function load() {
-      const [questionsResult, submissionsResult, balanceResult] = await Promise.all([
-        supabase
-          .from('questions')
-          .select('*')
-          .eq('form_source', 'outpatient')
-          .eq('is_active', true)
-          .order('sort_order', { ascending: true }),
-        supabase
-          .from('submissions')
-          .select(
-            'id, source, created_at, answers(value, question_id, question:questions(id, sort_order, question_type, prompt))'
-          )
-          .order('created_at', { ascending: false }),
-        supabase.functions.invoke<BalanceResult>('sms-send', {
-          body: { action: 'balance' },
-        }),
-      ]);
+      const [questionsResult, inpatientQuestionsResult, submissionsResult, balanceResult] =
+        await Promise.all([
+          supabase
+            .from('questions')
+            .select('*')
+            .eq('form_source', 'outpatient')
+            .eq('is_active', true)
+            .order('sort_order', { ascending: true }),
+          supabase
+            .from('questions')
+            .select('*')
+            .eq('form_source', 'inpatient')
+            .eq('is_active', true)
+            .order('sort_order', { ascending: true }),
+          supabase
+            .from('submissions')
+            .select(
+              'id, source, inpatient_answers, created_at, answers(value, question_id, question:questions(id, sort_order, question_type, prompt))'
+            )
+            .order('created_at', { ascending: false }),
+          supabase.functions.invoke<BalanceResult>('sms-send', {
+            body: { action: 'balance' },
+          }),
+        ]);
 
       if (balanceResult.error) {
         setAtBalance(null);
@@ -159,16 +201,23 @@ export default function AdminOverview() {
       }
       setBalanceLoading(false);
 
-      const questions = ((questionsResult.data as QuestionRow[]) ?? []).filter(
+      const outpatientQuestions = ((questionsResult.data as QuestionRow[]) ?? []).filter(
         (question) => question.question_type === 'rating' || question.question_type === 'choice'
       );
+      const inpatientFromDb = ((inpatientQuestionsResult.data as QuestionRow[]) ?? []).filter(
+        (question) => question.question_type === 'rating' || question.question_type === 'choice'
+      );
+      const inpatientQuestions =
+        inpatientFromDb.length > 0 ? inpatientFromDb : inpatientFallbackQuestions();
+
       const rows = (submissionsResult.data as unknown as SubmissionJoin[]) ?? [];
       const outpatientRows = rows.filter((row) => row.source !== 'inpatient');
+      const inpatientRows = rows.filter((row) => row.source === 'inpatient');
       const now = new Date();
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-      const answersByQuestionId: Record<string, string[]> = {};
-      for (const question of questions) answersByQuestionId[question.id] = [];
+      const outpatientAnswers: Record<string, string[]> = {};
+      for (const question of outpatientQuestions) outpatientAnswers[question.id] = [];
 
       let recommendYes = 0;
       let recommendTotal = 0;
@@ -177,8 +226,8 @@ export default function AdminOverview() {
         for (const answer of row.answers ?? []) {
           const questionId = answer.question_id || answer.question?.id;
           if (!questionId || !answer.value) continue;
-          if (!answersByQuestionId[questionId]) answersByQuestionId[questionId] = [];
-          answersByQuestionId[questionId].push(answer.value);
+          if (!outpatientAnswers[questionId]) outpatientAnswers[questionId] = [];
+          outpatientAnswers[questionId].push(answer.value);
 
           const type = answer.question?.question_type;
           const prompt = answer.question?.prompt?.toLowerCase() ?? '';
@@ -189,12 +238,24 @@ export default function AdminOverview() {
         }
       }
 
-      const stats = questions.map((question) =>
-        buildQuestionStats(question, answersByQuestionId[question.id] ?? [])
-      );
+      const inpatientAnswers: Record<string, string[]> = {};
+      for (const question of inpatientQuestions) inpatientAnswers[question.id] = [];
 
-      const firstRating = stats.find((item) => item.question.question_type === 'rating');
-      const ratingAverages = stats
+      for (const row of inpatientRows) {
+        const answers = row.inpatient_answers ?? {};
+        for (const question of inpatientQuestions) {
+          const slug = question.slug || question.id;
+          const value = answers[slug] ?? answers[question.id];
+          if (!value) continue;
+          inpatientAnswers[question.id].push(value);
+        }
+      }
+
+      const outpatientBuilt = statsForQuestions(outpatientQuestions, outpatientAnswers);
+      const inpatientBuilt = statsForQuestions(inpatientQuestions, inpatientAnswers);
+
+      const firstRating = outpatientBuilt.find((item) => item.question.question_type === 'rating');
+      const ratingAverages = outpatientBuilt
         .filter((item) => item.question.question_type === 'rating' && item.average)
         .map((item) => item.average as number);
       const overallAverage = ratingAverages.length
@@ -205,7 +266,6 @@ export default function AdminOverview() {
           )
         : firstRating?.average ?? 0;
 
-      const inpatientRows = rows.filter((row) => row.source === 'inpatient');
       const monthOutpatient = outpatientRows.filter(
         (row) => new Date(row.created_at) >= monthStart
       ).length;
@@ -220,11 +280,14 @@ export default function AdminOverview() {
       setMonthCount(monthOutpatient + monthInpatient);
       setAverage(overallAverage);
       setRecommendPct(recommendTotal ? Math.round((recommendYes / recommendTotal) * 100) : 0);
-      setQuestionStats(stats);
+      setOutpatientStats(outpatientBuilt);
+      setInpatientStats(inpatientBuilt);
       setLoading(false);
     }
     load();
   }, []);
+
+  const questionStats = breakdownSource === 'inpatient' ? inpatientStats : outpatientStats;
 
   const metrics = useMemo(
     () =>
@@ -309,9 +372,29 @@ export default function AdminOverview() {
       </section>
 
       <section className="space-y-4">
-        <div className="space-y-1">
-          <h3 className="text-base font-semibold">Question breakdown</h3>
-          <p className="text-sm text-muted-foreground">Primary view of how patients answered each question.</p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="space-y-1">
+            <h3 className="text-base font-semibold">Question breakdown</h3>
+            <p className="text-sm text-muted-foreground">
+              {breakdownSource === 'inpatient'
+                ? 'How inpatients answered each question.'
+                : 'How outpatients answered each question.'}
+            </p>
+          </div>
+          <Select
+            value={breakdownSource}
+            onValueChange={(value) => {
+              if (value === 'outpatient' || value === 'inpatient') setBreakdownSource(value);
+            }}
+          >
+            <SelectTrigger className="w-full sm:w-48" aria-label="Filter question breakdown by patient type">
+              <SelectValue placeholder="Patient type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="outpatient">Outpatients ({total})</SelectItem>
+              <SelectItem value="inpatient">Inpatients ({inpatientCount})</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div className="grid gap-6 lg:grid-cols-2">
           {loading
@@ -330,12 +413,16 @@ export default function AdminOverview() {
 
           {!loading &&
             questionStats.map((stats) => (
-              <QuestionBreakdownCard key={stats.question.id} stats={stats} />
+              <QuestionBreakdownCard
+                key={`${breakdownSource}-${stats.question.id}`}
+                stats={stats}
+              />
             ))}
 
           {!loading && !questionStats.length ? (
             <div className="lg:col-span-2 rounded-lg border py-12 text-center text-sm text-muted-foreground">
-              No active rating or choice questions yet.
+              No active rating or choice questions yet for{' '}
+              {breakdownSource === 'inpatient' ? 'inpatients' : 'outpatients'}.
             </div>
           ) : null}
         </div>
