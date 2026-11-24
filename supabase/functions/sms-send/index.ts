@@ -11,12 +11,18 @@ type Kind = "broadcast" | "single" | "feedback_invite";
 type Audience = "all" | "never_messaged";
 
 type Body = {
-  action?: "send" | "status";
+  action?: "send" | "status" | "balance";
   kind?: Kind;
   body?: string;
   patientId?: string;
   audience?: Audience;
 };
+
+function atHost(username: string) {
+  return username === "sandbox"
+    ? "https://api.sandbox.africastalking.com"
+    : "https://api.africastalking.com";
+}
 
 const MAX_PARTS = 3;
 const BATCH = 500;
@@ -75,6 +81,42 @@ Deno.serve(async (req) => {
     if (payload.action === "status") {
       return json({ sandbox: atUsername === "sandbox" });
     }
+
+    if (payload.action === "balance") {
+      if (!atUsername || !atApiKey) {
+        return json({ error: "SMS is not configured. Set AT_USERNAME and AT_API_KEY secrets." }, 500);
+      }
+      // Application Data API — same balance shown on the Africa's Talking dashboard.
+      // GET /version1/user?username=… → { UserData: { balance: "UGX …" } }
+      const atRes = await fetch(
+        `${atHost(atUsername)}/version1/user?username=${encodeURIComponent(atUsername)}`,
+        {
+          method: "GET",
+          headers: {
+            apiKey: atApiKey,
+            Accept: "application/json",
+          },
+        }
+      );
+      const atJson = await atRes.json().catch(() => null);
+      if (!atRes.ok) {
+        const err =
+          atJson?.message ??
+          atJson?.errorMessage ??
+          `Africa's Talking balance error (${atRes.status})`;
+        return json({ error: String(err) }, 502);
+      }
+      const balance = atJson?.UserData?.balance;
+      if (balance == null || balance === "") {
+        return json({ error: "Africa's Talking did not return an account balance." }, 502);
+      }
+      return json({
+        ok: true,
+        balance: String(balance),
+        sandbox: atUsername === "sandbox",
+      });
+    }
+
     if (payload.action !== "send") return json({ error: "Unknown action." }, 400);
 
     if (!atUsername || !atApiKey) {
@@ -171,10 +213,7 @@ Deno.serve(async (req) => {
       .single();
     if (msgError || !msg) return json({ error: msgError?.message ?? "Could not create message." }, 400);
 
-    const host =
-      atUsername === "sandbox"
-        ? "https://api.sandbox.africastalking.com"
-        : "https://api.africastalking.com";
+    const host = atHost(atUsername);
 
     let sentCount = 0;
     let failedCount = 0;

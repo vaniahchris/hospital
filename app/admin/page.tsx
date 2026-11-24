@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { LayoutDashboard, ListChecks, MessageSquareText, Users } from 'lucide-react';
+import { LayoutDashboard, ListChecks, MessageSquareText, Users, Wallet } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import {
   scoreForCare,
@@ -55,7 +55,15 @@ const metricIcons = {
   people: Users,
   dashboard: LayoutDashboard,
   questions: ListChecks,
+  wallet: Wallet,
 } as const;
+
+type BalanceResult = {
+  ok?: boolean;
+  balance?: string;
+  sandbox?: boolean;
+  error?: string;
+};
 
 function displayAnswer(value: string) {
   const recommend = shortRecommend(value);
@@ -110,11 +118,15 @@ export default function AdminOverview() {
   const [recommendPct, setRecommendPct] = useState(0);
   const [questionStats, setQuestionStats] = useState<QuestionStats[]>([]);
   const [loading, setLoading] = useState(true);
+  const [atBalance, setAtBalance] = useState<string | null>(null);
+  const [atBalanceError, setAtBalanceError] = useState('');
+  const [atSandbox, setAtSandbox] = useState(false);
+  const [balanceLoading, setBalanceLoading] = useState(true);
 
   useEffect(() => {
     const supabase = createClient();
     async function load() {
-      const [questionsResult, submissionsResult] = await Promise.all([
+      const [questionsResult, submissionsResult, balanceResult] = await Promise.all([
         supabase
           .from('questions')
           .select('*')
@@ -127,7 +139,23 @@ export default function AdminOverview() {
             'id, source, created_at, answers(value, question_id, question:questions(id, sort_order, question_type, prompt))'
           )
           .order('created_at', { ascending: false }),
+        supabase.functions.invoke<BalanceResult>('sms-send', {
+          body: { action: 'balance' },
+        }),
       ]);
+
+      if (balanceResult.error) {
+        setAtBalance(null);
+        setAtBalanceError(balanceResult.error.message || 'Could not load Africa\'s Talking balance.');
+      } else if (balanceResult.data?.error) {
+        setAtBalance(null);
+        setAtBalanceError(balanceResult.data.error);
+      } else {
+        setAtBalance(balanceResult.data?.balance ?? null);
+        setAtSandbox(!!balanceResult.data?.sandbox);
+        setAtBalanceError('');
+      }
+      setBalanceLoading(false);
 
       const questions = ((questionsResult.data as QuestionRow[]) ?? []).filter(
         (question) => question.question_type === 'rating' || question.question_type === 'choice'
@@ -194,8 +222,28 @@ export default function AdminOverview() {
         ['people', 'This month', String(monthCount), nowMonthLabel()],
         ['dashboard', 'Avg rating', average ? average.toFixed(1) : '—', 'Across rating questions'],
         ['questions', 'Recommend us', total ? `${recommendPct}%` : '—', 'Yes answers'],
+        [
+          'wallet',
+          'SMS balance',
+          balanceLoading ? '…' : atBalance ?? '—',
+          atBalanceError
+            ? 'Could not load from Africa\'s Talking'
+            : atSandbox
+              ? 'Africa\'s Talking sandbox'
+              : 'Africa\'s Talking account',
+        ],
       ] as const,
-    [total, inpatientCount, monthCount, average, recommendPct]
+    [
+      total,
+      inpatientCount,
+      monthCount,
+      average,
+      recommendPct,
+      atBalance,
+      atBalanceError,
+      atSandbox,
+      balanceLoading,
+    ]
   );
 
   return (
@@ -212,9 +260,11 @@ export default function AdminOverview() {
         </Button>
       </div>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {metrics.map(([icon, label, value, sub]) => {
           const Icon = metricIcons[icon];
+          const isBalance = icon === 'wallet';
+          const showSkeleton = isBalance ? balanceLoading : loading;
           return (
             <Card key={label} size="sm">
               <CardContent className="space-y-2">
@@ -222,10 +272,15 @@ export default function AdminOverview() {
                   <Icon className="size-3.5 shrink-0" />
                   {label}
                 </p>
-                {loading ? (
+                {showSkeleton ? (
                   <Skeleton className="h-7 w-14" />
                 ) : (
-                  <p className="text-2xl font-semibold tabular-nums tracking-tight">{value}</p>
+                  <p
+                    className="text-2xl font-semibold tabular-nums tracking-tight"
+                    title={isBalance && atBalanceError ? atBalanceError : undefined}
+                  >
+                    {value}
+                  </p>
                 )}
                 <p className="text-[11px] text-muted-foreground">{sub}</p>
               </CardContent>
