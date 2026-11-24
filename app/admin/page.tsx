@@ -114,6 +114,8 @@ export default function AdminOverview() {
   const [total, setTotal] = useState(0);
   const [inpatientCount, setInpatientCount] = useState(0);
   const [monthCount, setMonthCount] = useState(0);
+  const [monthOutpatientCount, setMonthOutpatientCount] = useState(0);
+  const [monthInpatientCount, setMonthInpatientCount] = useState(0);
   const [average, setAverage] = useState(0);
   const [recommendPct, setRecommendPct] = useState(0);
   const [questionStats, setQuestionStats] = useState<QuestionStats[]>([]);
@@ -203,9 +205,19 @@ export default function AdminOverview() {
           )
         : firstRating?.average ?? 0;
 
+      const inpatientRows = rows.filter((row) => row.source === 'inpatient');
+      const monthOutpatient = outpatientRows.filter(
+        (row) => new Date(row.created_at) >= monthStart
+      ).length;
+      const monthInpatient = inpatientRows.filter(
+        (row) => new Date(row.created_at) >= monthStart
+      ).length;
+
       setTotal(outpatientRows.length);
-      setInpatientCount(rows.filter((row) => row.source === 'inpatient').length);
-      setMonthCount(outpatientRows.filter((r) => new Date(r.created_at) >= monthStart).length);
+      setInpatientCount(inpatientRows.length);
+      setMonthOutpatientCount(monthOutpatient);
+      setMonthInpatientCount(monthInpatient);
+      setMonthCount(monthOutpatient + monthInpatient);
       setAverage(overallAverage);
       setRecommendPct(recommendTotal ? Math.round((recommendYes / recommendTotal) * 100) : 0);
       setQuestionStats(stats);
@@ -219,7 +231,12 @@ export default function AdminOverview() {
       [
         ['responses', 'Outpatient responses', String(total), 'All time'],
         ['responses', 'Inpatient responses', String(inpatientCount), 'All time'],
-        ['people', 'This month', String(monthCount), nowMonthLabel()],
+        [
+          'people',
+          'This month',
+          String(monthCount),
+          `${nowMonthLabel()} · ${monthOutpatientCount} out · ${monthInpatientCount} in`,
+        ],
         ['dashboard', 'Avg rating', average ? average.toFixed(1) : '—', 'Across rating questions'],
         ['questions', 'Recommend us', total ? `${recommendPct}%` : '—', 'Yes answers'],
         [
@@ -237,6 +254,8 @@ export default function AdminOverview() {
       total,
       inpatientCount,
       monthCount,
+      monthOutpatientCount,
+      monthInpatientCount,
       average,
       recommendPct,
       atBalance,
