@@ -40,6 +40,15 @@ function countParts(text: string): number {
   return text.length <= 70 ? 1 : Math.ceil(text.length / 67);
 }
 
+/** Normalize phone forms so AT response numbers match our stored E.164 values. */
+function phoneLookupKey(raw: string): string {
+  const digits = String(raw).replace(/\D/g, "");
+  if (digits.startsWith("256") && digits.length >= 12) return digits.slice(0, 12);
+  if (digits.startsWith("0") && digits.length === 10) return `256${digits.slice(1)}`;
+  if (digits.length === 9 && digits.startsWith("7")) return `256${digits}`;
+  return digits;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -122,6 +131,7 @@ Deno.serve(async (req) => {
             .from("sms_recipients")
             .select("patient_id, phone")
             .eq("status", "sent")
+            .order("id")
             .range(from, from + PAGE_SIZE - 1);
           if (error) return json({ error: error.message }, 400);
           for (const row of data ?? []) {
@@ -210,13 +220,17 @@ Deno.serve(async (req) => {
       }
 
       const recipientsOut = atJson?.SMSMessageData?.Recipients ?? [];
-      const byPhone = new Map<string, { statusCode: number; status: string; messageId?: string; cost?: string }>();
+      const byPhone = new Map<
+        string,
+        { statusCode: number; status: string; messageId?: string; cost?: string; number?: string }
+      >();
       for (const item of recipientsOut) {
-        if (item?.number) byPhone.set(String(item.number), item);
+        if (!item?.number) continue;
+        byPhone.set(phoneLookupKey(String(item.number)), item);
       }
 
       for (const r of batch) {
-        const hit = byPhone.get(r.phone);
+        const hit = byPhone.get(phoneLookupKey(r.phone));
         const ok = hit && [100, 101, 102].includes(Number(hit.statusCode));
         if (ok) {
           sentCount++;
@@ -230,7 +244,9 @@ Deno.serve(async (req) => {
           });
         } else {
           failedCount++;
-          const err = hit?.status ?? "Delivery rejected";
+          const err = hit
+            ? `${hit.status || "Rejected"} (code ${hit.statusCode ?? "—"})`
+            : "No Africa's Talking response for this number";
           failures.push({ phone: r.phone, error: String(err) });
           recipientRows.push({
             message_id: msg.id,

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Send } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { fetchAllPages } from '@/lib/supabase/fetch-all';
 import {
   countSmsParts,
   isWithinSmsPartLimit,
@@ -73,11 +74,15 @@ type SmsRecipient = {
 
 type SendResult = {
   error?: string;
+  messageId?: string;
   recipientCount?: number;
   sentCount?: number;
   failedCount?: number;
   status?: string;
+  failures?: { phone: string; error: string }[];
 };
+
+type RecipientFilter = 'all' | 'failed' | 'sent';
 
 async function invokeErrorMessage(error: unknown, fallback: string) {
   const invokeError = error as { message?: string; context?: Response };
@@ -129,6 +134,7 @@ export default function Messages() {
   const [sendError, setSendError] = useState('');
   const [success, setSuccess] = useState('');
   const [historyPage, setHistoryPage] = useState(0);
+  const [recipientFilter, setRecipientFilter] = useState<RecipientFilter>('all');
   const recipientRequestRef = useRef(0);
 
   const parts = useMemo(() => countSmsParts(body), [body]);
@@ -145,6 +151,25 @@ export default function Messages() {
     isWithinSmsPartLimit(body) &&
     !sending &&
     (kind === 'single' ? !!patientId : eligibleCount > 0);
+  const sendBlockedReason = !body.trim()
+    ? 'Enter a message before sending.'
+    : !isWithinSmsPartLimit(body)
+      ? 'Shorten the message to 3 SMS parts or fewer.'
+      : kind === 'single' && !patientId
+        ? 'Select a patient.'
+        : kind !== 'single' && eligibleCount <= 0
+          ? audience === 'never_messaged'
+            ? 'No never-messaged patients are eligible right now.'
+            : 'No eligible patients to message.'
+          : '';
+  const filteredRecipients = useMemo(() => {
+    if (recipientFilter === 'all') return recipients;
+    return recipients.filter((recipient) => recipient.status === recipientFilter);
+  }, [recipients, recipientFilter]);
+  const failedRecipientCount = useMemo(
+    () => recipients.filter((recipient) => recipient.status === 'failed').length,
+    [recipients]
+  );
 
   const historyPageCount = Math.max(1, Math.ceil(messages.length / HISTORY_PAGE_SIZE));
   const pagedMessages = useMemo(() => {
@@ -171,16 +196,26 @@ export default function Messages() {
         supabase.functions.invoke<{ sandbox?: boolean; error?: string }>('sms-send', {
           body: { action: 'status' },
         }),
-        supabase
-          .from('patients')
-          .select('id, name, phone')
-          .eq('do_not_message', false)
-          .order('name'),
+        fetchAllPages<Patient>((from, to) =>
+          supabase
+            .from('patients')
+            .select('id, name, phone')
+            .eq('do_not_message', false)
+            .order('id')
+            .range(from, to)
+        ),
         supabase
           .from('sms_messages')
           .select(MESSAGE_SELECT)
           .order('created_at', { ascending: false }),
-        supabase.from('sms_recipients').select('patient_id, phone').eq('status', 'sent'),
+        fetchAllPages<{ patient_id: string | null; phone: string | null }>((from, to) =>
+          supabase
+            .from('sms_recipients')
+            .select('patient_id, phone')
+            .eq('status', 'sent')
+            .order('id')
+            .range(from, to)
+        ),
       ]);
 
       if (!active) return;
@@ -196,12 +231,12 @@ export default function Messages() {
       }
 
       const errors = [
-        patientsResult.error?.message,
+        patientsResult.error,
         messagesResult.error?.message,
-        historyResult.error?.message,
+        historyResult.error,
       ].filter(Boolean);
       setLoadError(errors.join(' '));
-      if (!patientsResult.error) setPatients((patientsResult.data as Patient[]) ?? []);
+      if (!patientsResult.error) setPatients(patientsResult.data);
       if (!messagesResult.error) {
         setMessages((messagesResult.data as SmsMessage[]) ?? []);
         setHistoryPage(0);
@@ -209,7 +244,7 @@ export default function Messages() {
       if (!historyResult.error) {
         const ids = new Set<string>();
         const phones = new Set<string>();
-        for (const row of historyResult.data ?? []) {
+        for (const row of historyResult.data) {
           if (row.patient_id) ids.add(String(row.patient_id));
           if (row.phone) phones.add(String(row.phone));
         }
@@ -259,46 +294,80 @@ export default function Messages() {
       return;
     }
 
+    const failed = data?.failedCount ?? 0;
+    const failurePreview = (data?.failures ?? [])
+      .slice(0, 3)
+      .map((item) => `${item.phone}: ${item.error}`)
+      .join(' · ');
     setSuccess(
-      `Send complete: ${data?.sentCount ?? 0} sent, ${data?.failedCount ?? 0} failed out of ${data?.recipientCount ?? 0}.`
+      failed > 0
+        ? `Send complete: ${data?.sentCount ?? 0} sent, ${failed} failed out of ${data?.recipientCount ?? 0}.${
+            failurePreview ? ` First failures — ${failurePreview}` : ''
+          } Click the latest history row to inspect failed numbers.`
+        : `Send complete: ${data?.sentCount ?? 0} sent, ${failed} failed out of ${data?.recipientCount ?? 0}.`
     );
     try {
       await loadHistory();
-      const { data: historyRows } = await createClient()
-        .from('sms_recipients')
-        .select('patient_id, phone')
-        .eq('status', 'sent');
+      const supabase = createClient();
+      const history = await fetchAllPages<{ patient_id: string | null; phone: string | null }>(
+        (from, to) =>
+          supabase
+            .from('sms_recipients')
+            .select('patient_id, phone')
+            .eq('status', 'sent')
+            .order('id')
+            .range(from, to)
+      );
+      if (history.error) throw new Error(history.error);
       const ids = new Set<string>();
       const phones = new Set<string>();
-      for (const row of historyRows ?? []) {
+      for (const row of history.data) {
         if (row.patient_id) ids.add(String(row.patient_id));
         if (row.phone) phones.add(String(row.phone));
       }
       setMessagedPatientIds(ids);
       setMessagedPhones(phones);
+
+      const { data: latest } = await supabase
+        .from('sms_messages')
+        .select(MESSAGE_SELECT)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (latest) {
+        await selectMessage(latest as SmsMessage, failed > 0 ? 'failed' : 'all');
+      }
     } catch (historyError) {
       setLoadError(historyError instanceof Error ? historyError.message : 'Could not refresh history.');
     }
   }
 
-  async function selectMessage(message: SmsMessage) {
+  async function selectMessage(message: SmsMessage, filter: RecipientFilter = 'all') {
     const requestId = ++recipientRequestRef.current;
     setSelectedMessage(message);
+    setRecipientFilter(filter);
     setRecipients([]);
     setRecipientLoading(true);
     setLoadError('');
-    const { data, error } = await createClient()
-      .from('sms_recipients')
-      .select('id, phone, status, error, cost')
-      .eq('message_id', message.id)
-      .order('status');
+    const supabase = createClient();
+    const { data, error } = await fetchAllPages<SmsRecipient>((from, to) =>
+      supabase
+        .from('sms_recipients')
+        .select('id, phone, status, error, cost')
+        .eq('message_id', message.id)
+        .order('id')
+        .range(from, to)
+    );
     if (requestId !== recipientRequestRef.current) return;
     setRecipientLoading(false);
     if (error) {
-      setLoadError(error.message);
+      setLoadError(error);
       return;
     }
-    setRecipients((data as SmsRecipient[]) ?? []);
+    const rows = [...data];
+    // Failed first so carrier rejects are easy to spot.
+    rows.sort((a, b) => Number(b.status === 'failed') - Number(a.status === 'failed'));
+    setRecipients(rows);
   }
 
   return (
@@ -423,13 +492,20 @@ export default function Messages() {
                 <AlertDescription>{success}</AlertDescription>
               </Alert>
             ) : null}
+            {!canSend && !sending && sendBlockedReason ? (
+              <p className="text-sm text-muted-foreground">{sendBlockedReason}</p>
+            ) : null}
 
             <Button
               disabled={!canSend}
               onClick={() => (needsConfirmation ? setConfirmOpen(true) : sendMessage())}
             >
               <Send data-icon="inline-start" />
-              {sending ? 'Sending…' : 'Send message'}
+              {sending
+                ? 'Sending…'
+                : kind === 'single'
+                  ? 'Send message'
+                  : `Send to ${eligibleCount || 0}`}
             </Button>
           </CardContent>
         </Card>
@@ -479,8 +555,15 @@ export default function Messages() {
                         {message.body}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={message.status === 'failed' ? 'destructive' : 'secondary'}>
+                        <Badge
+                          variant={
+                            message.status === 'failed' || message.failed_count > 0
+                              ? 'destructive'
+                              : 'secondary'
+                          }
+                        >
                           {message.status}
+                          {message.failed_count > 0 ? ` · ${message.failed_count} failed` : ''}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
@@ -531,12 +614,32 @@ export default function Messages() {
 
         {selectedMessage ? (
           <Card>
-            <CardHeader>
-              <CardTitle>Recipients</CardTitle>
-              <CardDescription>
-                Delivery details for {kindLabel(selectedMessage.kind).toLowerCase()} sent{' '}
-                {new Date(selectedMessage.created_at).toLocaleString()}.
-              </CardDescription>
+            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <CardTitle>Recipients</CardTitle>
+                <CardDescription>
+                  API-time results for {kindLabel(selectedMessage.kind).toLowerCase()} sent{' '}
+                  {new Date(selectedMessage.created_at).toLocaleString()}.
+                  {failedRecipientCount
+                    ? ` ${failedRecipientCount} failed at send time.`
+                    : ''}{' '}
+                  Africa&apos;s Talking Outbox may later mark some accepted numbers as Failed
+                  after carrier delivery — those post-send delivery changes are not synced here yet.
+                </CardDescription>
+              </div>
+              <Select
+                value={recipientFilter}
+                onValueChange={(value) => setRecipientFilter((value as RecipientFilter) ?? 'all')}
+              >
+                <SelectTrigger className="w-full sm:w-44" aria-label="Filter recipients by status">
+                  <SelectValue placeholder="Filter status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All recipients</SelectItem>
+                  <SelectItem value="failed">Failed only</SelectItem>
+                  <SelectItem value="sent">Sent only</SelectItem>
+                </SelectContent>
+              </Select>
             </CardHeader>
             <CardContent>
               <Table>
@@ -549,7 +652,7 @@ export default function Messages() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {recipients.map((recipient) => (
+                  {filteredRecipients.map((recipient) => (
                     <TableRow key={recipient.id}>
                       <TableCell className="font-medium">{recipient.phone}</TableCell>
                       <TableCell>
@@ -565,9 +668,11 @@ export default function Messages() {
                   ))}
                 </TableBody>
               </Table>
-              {!recipientLoading && !recipients.length ? (
+              {!recipientLoading && !filteredRecipients.length ? (
                 <p className="py-8 text-center text-sm text-muted-foreground">
-                  No recipient records found.
+                  {recipients.length
+                    ? `No ${recipientFilter} recipients for this message.`
+                    : 'No recipient records found.'}
                 </p>
               ) : null}
               {recipientLoading ? (

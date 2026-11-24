@@ -12,6 +12,7 @@ import {
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { createClient } from '@/lib/supabase/client';
+import { fetchAllPages } from '@/lib/supabase/fetch-all';
 import { parsePatientImportFile, type CsvPreview } from '@/lib/patient-csv';
 import { normalizeUgandanPhone } from '@/lib/phone';
 import {
@@ -110,26 +111,42 @@ export default function Patients() {
   async function load() {
     setLoading(true);
     const supabase = createClient();
+    type HistoryRow = {
+      patient_id: string | null;
+      phone: string | null;
+      sms_messages: { created_at?: string } | { created_at?: string }[] | null;
+    };
     const [patientsResult, historyResult] = await Promise.all([
-      supabase.from('patients').select('*').order('updated_at', { ascending: false }),
-      supabase
-        .from('sms_recipients')
-        .select('patient_id, phone, sms_messages!inner(created_at)')
-        .eq('status', 'sent'),
+      fetchAllPages<Patient>((from, to) =>
+        supabase.from('patients').select('*').order('id').range(from, to)
+      ),
+      fetchAllPages<HistoryRow>((from, to) =>
+        supabase
+          .from('sms_recipients')
+          .select('patient_id, phone, sms_messages!inner(created_at)')
+          .eq('status', 'sent')
+          .order('id')
+          .range(from, to)
+      ),
     ]);
 
-    if (patientsResult.error) setError(patientsResult.error.message);
-    else setPatients((patientsResult.data as Patient[]) ?? []);
+    if (patientsResult.error) setError(patientsResult.error);
+    else {
+      setError('');
+      setPatients(
+        [...patientsResult.data].sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+      );
+    }
 
     if (historyResult.error) {
-      setError((current) => current || historyResult.error.message);
+      setError((current) => current || historyResult.error || 'Could not load message history.');
       setLastMessagedByPatientId({});
       setLastMessagedByPhone({});
     } else {
       const byId: Record<string, string> = {};
       const byPhone: Record<string, string> = {};
-      for (const row of historyResult.data ?? []) {
-        const message = row.sms_messages as { created_at?: string } | { created_at?: string }[] | null;
+      for (const row of historyResult.data) {
+        const message = row.sms_messages;
         const createdAt = Array.isArray(message)
           ? message[0]?.created_at
           : message?.created_at;
