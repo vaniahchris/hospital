@@ -537,44 +537,52 @@ export default function Messages() {
                     </Button>
                   </div>
                 ) : (
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      id="message-patient-search"
-                      value={patientQuery}
-                      onChange={(event) => setPatientQuery(event.target.value)}
-                      placeholder="Search by name or phone"
-                      className="pl-8"
-                      autoComplete="off"
-                    />
-                    {patientQuery.trim() ? (
-                      <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border bg-popover shadow-sm">
-                        {patientMatches.length ? (
-                          <ul className="py-1">
-                            {patientMatches.map((patient) => (
-                              <li key={patient.id}>
-                                <button
-                                  type="button"
-                                  className="flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left transition-colors duration-150 ease-[var(--ease-out)] hover:bg-accent active:scale-[0.99]"
-                                  onClick={() => selectPatient(patient)}
-                                >
-                                  <span className="text-sm font-medium">{patient.name}</span>
-                                  <span className="text-xs text-muted-foreground">{patient.phone}</span>
-                                </button>
-                              </li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <p className="px-3 py-3 text-sm text-muted-foreground">
-                            No patients match “{patientQuery.trim()}”.
-                          </p>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="mt-1.5 text-xs text-muted-foreground">
+                  <div className="space-y-1.5">
+                    <div className="relative">
+                      <Search
+                        aria-hidden
+                        className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
+                      />
+                      <Input
+                        id="message-patient-search"
+                        value={patientQuery}
+                        onChange={(event) => setPatientQuery(event.target.value)}
+                        placeholder="Search by name or phone"
+                        className="pl-8"
+                        autoComplete="off"
+                      />
+                      {patientQuery.trim() ? (
+                        <div className="absolute top-full z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border bg-popover shadow-sm">
+                          {patientMatches.length ? (
+                            <ul className="py-1">
+                              {patientMatches.map((patient) => (
+                                <li key={patient.id}>
+                                  <button
+                                    type="button"
+                                    className="flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left transition-colors duration-150 ease-[var(--ease-out)] hover:bg-accent active:scale-[0.99]"
+                                    onClick={() => selectPatient(patient)}
+                                  >
+                                    <span className="text-sm font-medium">{patient.name}</span>
+                                    <span className="text-xs text-muted-foreground">
+                                      {patient.phone}
+                                    </span>
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="px-3 py-3 text-sm text-muted-foreground">
+                              No patients match “{patientQuery.trim()}”.
+                            </p>
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+                    {!patientQuery.trim() ? (
+                      <p className="text-xs text-muted-foreground">
                         Type a name or number to find a patient.
                       </p>
-                    )}
+                    ) : null}
                   </div>
                 )}
               </div>
