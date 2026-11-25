@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Search, Send, X } from 'lucide-react';
+import { CheckCircle2, CircleX, MessageSquare, Search, Send, X } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { fetchAllPages } from '@/lib/supabase/fetch-all';
 import {
@@ -32,6 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
   TableBody,
@@ -190,6 +191,20 @@ export default function Messages() {
     () => recipients.filter((recipient) => recipient.status === 'failed').length,
     [recipients]
   );
+  const smsStats = useMemo(() => {
+    let sent = 0;
+    let failed = 0;
+    for (const message of messages) {
+      sent += message.sent_count ?? 0;
+      failed += message.failed_count ?? 0;
+    }
+    return {
+      campaigns: messages.length,
+      sent,
+      failed,
+      attempted: sent + failed,
+    };
+  }, [messages]);
 
   const historyPageCount = Math.max(1, Math.ceil(messages.length / HISTORY_PAGE_SIZE));
   const pagedMessages = useMemo(() => {
@@ -407,13 +422,64 @@ export default function Messages() {
 
   return (
     <>
-      <main className="mx-auto max-w-[1400px] space-y-10 p-4 md:px-10 md:py-8">
+      <main className="mx-auto max-w-[1400px] space-y-8 p-4 md:px-10 md:py-8">
         <div className="space-y-1">
           <h2 className="text-xl font-semibold">Messages</h2>
           <p className="text-sm text-muted-foreground">
             Send patient SMS and review delivery results.
           </p>
         </div>
+
+        <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {[
+            {
+              icon: MessageSquare,
+              label: 'Campaigns',
+              value: String(smsStats.campaigns),
+              sub: 'Messages sent',
+            },
+            {
+              icon: CheckCircle2,
+              label: 'Successful',
+              value: String(smsStats.sent),
+              sub: 'Delivered at send time',
+            },
+            {
+              icon: CircleX,
+              label: 'Failed',
+              value: String(smsStats.failed),
+              sub: 'Rejected at send time',
+            },
+            {
+              icon: Send,
+              label: 'Recipients',
+              value: String(smsStats.attempted),
+              sub: 'Total send attempts',
+            },
+          ].map((stat) => {
+            const Icon = stat.icon;
+            return (
+              <Card
+                key={stat.label}
+                size="sm"
+                className="transition-[transform,box-shadow,border-color,background-color] duration-200 ease-[var(--ease-out)] will-change-transform hover:-translate-y-0.5 hover:border-primary/25 hover:bg-accent/40 hover:shadow-sm active:scale-[0.97] active:shadow-none"
+              >
+                <CardContent className="space-y-2">
+                  <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Icon className="size-3.5 shrink-0" />
+                    {stat.label}
+                  </p>
+                  {loading ? (
+                    <Skeleton className="h-7 w-14" />
+                  ) : (
+                    <p className="text-2xl font-semibold tabular-nums tracking-tight">{stat.value}</p>
+                  )}
+                  <p className="text-[11px] text-muted-foreground">{stat.sub}</p>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </section>
 
         {sandbox ? (
           <Alert className="border-amber-300 bg-amber-50 text-amber-950">
@@ -435,15 +501,14 @@ export default function Messages() {
           </Alert>
         ) : null}
 
-        <Card className="border">
-          <CardHeader className="space-y-1">
+        <Card className="max-w-2xl border">
+          <CardHeader className="space-y-1 pb-3">
             <CardTitle className="text-base font-semibold">Compose message</CardTitle>
             <CardDescription>
-              Eligible recipients exclude patients marked do not message. Choose never messaged to
-              reach only patients with no prior successful send.
+              Do-not-message patients are skipped. Use never messaged for first-time SMS only.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-4">
             <Tabs value={kind} onValueChange={(value) => changeKind(value ?? 'broadcast')}>
               <TabsList className="grid h-auto w-full grid-cols-3 sm:w-fit">
                 <TabsTrigger value="broadcast">Broadcast</TabsTrigger>
@@ -553,9 +618,9 @@ export default function Messages() {
                 id="message-body"
                 value={body}
                 onChange={(event) => setBody(event.target.value)}
-                rows={5}
+                rows={3}
                 placeholder="Write your message"
-                className="min-h-40 w-full rounded-md border border-input bg-transparent px-3 py-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="min-h-24 w-full resize-y rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
               />
               {parts.parts > 3 ? (
                 <p className="text-xs text-destructive">Shorten this message to 3 SMS parts or fewer.</p>
