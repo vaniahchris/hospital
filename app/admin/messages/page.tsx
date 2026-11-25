@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Send } from 'lucide-react';
+import { Search, Send, X } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { fetchAllPages } from '@/lib/supabase/fetch-all';
 import {
@@ -23,6 +23,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -118,6 +119,7 @@ export default function Messages() {
   const [audience, setAudience] = useState<Audience>('all');
   const [body, setBody] = useState('');
   const [patientId, setPatientId] = useState('');
+  const [patientQuery, setPatientQuery] = useState('');
   const [patients, setPatients] = useState<Patient[]>([]);
   const [messagedPatientIds, setMessagedPatientIds] = useState<Set<string>>(new Set());
   const [messagedPhones, setMessagedPhones] = useState<Set<string>>(new Set());
@@ -145,6 +147,24 @@ export default function Messages() {
     );
   }, [patients, audience, messagedPatientIds, messagedPhones]);
   const eligibleCount = eligiblePatients.length;
+  const selectedPatient = useMemo(
+    () => patients.find((patient) => patient.id === patientId) ?? null,
+    [patients, patientId]
+  );
+  const patientMatches = useMemo(() => {
+    const query = patientQuery.trim().toLowerCase();
+    const digits = patientQuery.replace(/\D/g, '');
+    if (!query) return [];
+    return patients
+      .filter((patient) => {
+        const nameHit = patient.name.toLowerCase().includes(query);
+        const phoneHit =
+          patient.phone.toLowerCase().includes(query) ||
+          (digits.length >= 3 && patient.phone.replace(/\D/g, '').includes(digits));
+        return nameHit || phoneHit;
+      })
+      .slice(0, 40);
+  }, [patients, patientQuery]);
   const needsConfirmation = kind !== 'single';
   const canSend =
     !!body.trim() &&
@@ -265,7 +285,22 @@ export default function Messages() {
     setKind(nextKind);
     setSendError('');
     setSuccess('');
+    if (nextKind !== 'single') {
+      setPatientId('');
+      setPatientQuery('');
+    }
     if (nextKind === 'feedback_invite') setBody(pickFeedbackInviteBody());
+  }
+
+  function selectPatient(patient: Patient) {
+    setPatientId(patient.id);
+    setPatientQuery('');
+    setSendError('');
+  }
+
+  function clearSelectedPatient() {
+    setPatientId('');
+    setPatientQuery('');
   }
 
   async function sendMessage() {
@@ -418,20 +453,65 @@ export default function Messages() {
             </Tabs>
 
             {kind === 'single' ? (
-              <div className="grid gap-2">
-                <Label htmlFor="message-patient">Patient</Label>
-                <Select value={patientId} onValueChange={(value) => setPatientId(value ?? '')}>
-                  <SelectTrigger id="message-patient" className="w-full sm:max-w-md">
-                    <SelectValue placeholder="Select an eligible patient" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {patients.map((patient) => (
-                      <SelectItem key={patient.id} value={patient.id}>
-                        {patient.name} · {patient.phone}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="grid gap-2 sm:max-w-md">
+                <Label htmlFor="message-patient-search">Patient</Label>
+                {selectedPatient ? (
+                  <div className="flex items-center gap-2 rounded-lg border border-input bg-background px-2.5 py-1.5">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{selectedPatient.name}</p>
+                      <p className="truncate text-xs text-muted-foreground">{selectedPatient.phone}</p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label="Clear selected patient"
+                      onClick={clearSelectedPatient}
+                    >
+                      <X className="size-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="message-patient-search"
+                      value={patientQuery}
+                      onChange={(event) => setPatientQuery(event.target.value)}
+                      placeholder="Search by name or phone"
+                      className="pl-8"
+                      autoComplete="off"
+                    />
+                    {patientQuery.trim() ? (
+                      <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border bg-popover shadow-sm">
+                        {patientMatches.length ? (
+                          <ul className="py-1">
+                            {patientMatches.map((patient) => (
+                              <li key={patient.id}>
+                                <button
+                                  type="button"
+                                  className="flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left transition-colors duration-150 ease-[var(--ease-out)] hover:bg-accent active:scale-[0.99]"
+                                  onClick={() => selectPatient(patient)}
+                                >
+                                  <span className="text-sm font-medium">{patient.name}</span>
+                                  <span className="text-xs text-muted-foreground">{patient.phone}</span>
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="px-3 py-3 text-sm text-muted-foreground">
+                            No patients match “{patientQuery.trim()}”.
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="mt-1.5 text-xs text-muted-foreground">
+                        Type a name or number to find a patient.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="grid gap-3 sm:max-w-md">
