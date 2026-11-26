@@ -35,6 +35,8 @@ create table if not exists public.sms_recipients (
 );
 
 create index if not exists sms_recipients_message_id_idx on public.sms_recipients (message_id);
+create index if not exists sms_recipients_provider_message_id_idx
+  on public.sms_recipients (provider_message_id);
 create index if not exists patients_name_idx on public.patients (name);
 
 alter table public.patients enable row level security;

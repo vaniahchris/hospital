@@ -776,8 +776,8 @@ export default function Messages() {
                   {failedRecipientCount
                     ? ` ${failedRecipientCount} failed at send time.`
                     : ''}{' '}
-                  Africa&apos;s Talking Outbox may later mark some accepted numbers as Failed
-                  after carrier delivery — those post-send delivery changes are not synced here yet.
+                  Delivery reports from Africa&apos;s Talking update these rows when the webhook
+                  is configured (Success → sent, Failed/Rejected → failed).
                 </CardDescription>
               </div>
               <Select

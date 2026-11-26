@@ -41,7 +41,17 @@ Patient broadcasts and invites use Supabase Edge Function `sms-send`.
    - `AT_USERNAME` = `sandbox`
    - `AT_API_KEY` = your sandbox key
    - `AT_SENDER_ID` = optional (leave empty until approved)
+   - `AT_DELIVERY_WEBHOOK_SECRET` = a long random token (for Outbox delivery sync)
 3. Admin → Patients: upload CSV (`name,phone`).
 4. Admin → Messages: send in Test mode; check the AT simulator.
+
+### Delivery reports (Outbox sync)
+
+Edge Function `sms-delivery-report` updates `sms_recipients` when Africa's Talking posts a final delivery status (`Success` → sent, `Failed` / `Rejected` / etc. → failed).
+
+1. Set secret `AT_DELIVERY_WEBHOOK_SECRET` (same value as in the URL below).
+2. In Africa's Talking → SMS → SMS Callback URLs → Delivery Reports, set:
+   `https://<project-ref>.supabase.co/functions/v1/sms-delivery-report?token=<AT_DELIVERY_WEBHOOK_SECRET>`
+3. JWT verification stays **off** for this function (AT cannot send a Supabase JWT).
 
 Live cutover: change secrets to the live username/key (and Sender ID when approved). No code change.
