@@ -430,55 +430,62 @@ export default function Messages() {
           </p>
         </div>
 
-        <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {[
-            {
-              icon: MessageSquare,
-              label: 'Campaigns',
-              value: String(smsStats.campaigns),
-              sub: 'Messages sent',
-            },
-            {
-              icon: CheckCircle2,
-              label: 'Successful',
-              value: String(smsStats.sent),
-              sub: 'Delivered at send time',
-            },
-            {
-              icon: CircleX,
-              label: 'Failed',
-              value: String(smsStats.failed),
-              sub: 'Rejected at send time',
-            },
-            {
-              icon: Send,
-              label: 'Recipients',
-              value: String(smsStats.attempted),
-              sub: 'Total send attempts',
-            },
-          ].map((stat) => {
-            const Icon = stat.icon;
-            return (
-              <Card
-                key={stat.label}
-                size="sm"
-                className="transition-[transform,box-shadow,border-color,background-color] duration-200 ease-[var(--ease-out)] will-change-transform hover:-translate-y-0.5 hover:border-primary/25 hover:bg-accent/40 hover:shadow-sm active:scale-[0.97] active:shadow-none"
-              >
-                <CardContent className="space-y-2">
-                  <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Icon className="size-3.5 shrink-0" />
-                    {stat.label}
-                  </p>
-                  {loading ? (
-                    <Skeleton className="h-7 w-14" />
-                  ) : (
-                    <p className="text-2xl font-semibold tabular-nums tracking-tight">{stat.value}</p>
-                  )}
-                  <p className="text-[11px] text-muted-foreground">{stat.sub}</p>
-                </CardContent>
-              </Card>
-            );
-          })}
+        <section className="space-y-2">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {[
+              {
+                icon: MessageSquare,
+                label: 'Campaigns',
+                value: String(smsStats.campaigns),
+                sub: 'Send batches',
+              },
+              {
+                icon: CheckCircle2,
+                label: 'Successful',
+                value: String(smsStats.sent),
+                sub: 'Accepted or delivered',
+              },
+              {
+                icon: CircleX,
+                label: 'Failed',
+                value: String(smsStats.failed),
+                sub: 'Could not be delivered',
+              },
+              {
+                icon: Send,
+                label: 'Recipients',
+                value: String(smsStats.attempted),
+                sub: 'Total send attempts',
+              },
+            ].map((stat) => {
+              const Icon = stat.icon;
+              return (
+                <Card
+                  key={stat.label}
+                  size="sm"
+                  className="transition-[transform,box-shadow,border-color,background-color] duration-200 ease-[var(--ease-out)] will-change-transform hover:-translate-y-0.5 hover:border-primary/25 hover:bg-accent/40 hover:shadow-sm active:scale-[0.97] active:shadow-none"
+                >
+                  <CardContent className="space-y-2">
+                    <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Icon className="size-3.5 shrink-0" />
+                      {stat.label}
+                    </p>
+                    {loading ? (
+                      <Skeleton className="h-7 w-14" />
+                    ) : (
+                      <p className="text-2xl font-semibold tabular-nums tracking-tight">{stat.value}</p>
+                    )}
+                    <p className="text-[11px] text-muted-foreground">{stat.sub}</p>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Failed updates when a message is refused up front or when Africa&apos;s Talking later
+            reports that delivery did not reach the phone. Older failures from before that link was
+            set up are not listed here.
+          </p>
         </section>
 
         {sandbox ? (
@@ -771,13 +778,13 @@ export default function Messages() {
               <div>
                 <CardTitle>Recipients</CardTitle>
                 <CardDescription>
-                  API-time results for {kindLabel(selectedMessage.kind).toLowerCase()} sent{' '}
+                  Results for {kindLabel(selectedMessage.kind).toLowerCase()} sent{' '}
                   {new Date(selectedMessage.created_at).toLocaleString()}.
                   {failedRecipientCount
-                    ? ` ${failedRecipientCount} failed at send time.`
+                    ? ` ${failedRecipientCount} could not be delivered.`
                     : ''}{' '}
-                  Delivery reports from Africa&apos;s Talking update these rows when the webhook
-                  is configured (Success → sent, Failed/Rejected → failed).
+                  Status here updates when Africa&apos;s Talking confirms delivery or reports a
+                  failure.
                 </CardDescription>
               </div>
               <Select
