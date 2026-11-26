@@ -483,8 +483,7 @@ export default function Messages() {
           </div>
           <p className="text-xs text-muted-foreground">
             Failed updates when a message is refused up front or when Africa&apos;s Talking later
-            reports that delivery did not reach the phone. Older failures from before that link was
-            set up are not listed here.
+            reports that delivery did not reach the phone.
           </p>
         </section>
 
