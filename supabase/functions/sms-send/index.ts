@@ -8,7 +8,7 @@ const corsHeaders = {
 
 type Kind = "broadcast" | "single" | "feedback_invite";
 
-type Audience = "all" | "never_messaged";
+type Audience = "all" | "never_messaged" | "latest_import";
 
 type Body = {
   action?: "send" | "status" | "balance";
@@ -137,14 +137,19 @@ Deno.serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    type Patient = { id: string; phone: string; do_not_message: boolean };
+    type Patient = {
+      id: string;
+      phone: string;
+      do_not_message: boolean;
+      last_imported_at?: string | null;
+    };
     let recipients: Patient[] = [];
 
     if (kind === "single") {
       if (!payload.patientId) return json({ error: "patientId is required for single send." }, 400);
       const { data, error } = await admin
         .from("patients")
-        .select("id, phone, do_not_message")
+        .select("id, phone, do_not_message, last_imported_at")
         .eq("id", payload.patientId)
         .maybeSingle();
       if (error || !data) return json({ error: "Patient not found." }, 400);
@@ -154,7 +159,7 @@ Deno.serve(async (req) => {
       for (let from = 0;; from += PAGE_SIZE) {
         const { data, error } = await admin
           .from("patients")
-          .select("id, phone, do_not_message")
+          .select("id, phone, do_not_message, last_imported_at")
           .eq("do_not_message", false)
           .order("id")
           .range(from, from + PAGE_SIZE - 1);
@@ -164,7 +169,11 @@ Deno.serve(async (req) => {
       }
 
       const audience: Audience =
-        payload.audience === "never_messaged" ? "never_messaged" : "all";
+        payload.audience === "never_messaged"
+          ? "never_messaged"
+          : payload.audience === "latest_import"
+            ? "latest_import"
+            : "all";
       if (audience === "never_messaged") {
         const priorIds = new Set<string>();
         const priorPhones = new Set<string>();
@@ -185,6 +194,19 @@ Deno.serve(async (req) => {
         recipients = recipients.filter(
           (patient) => !priorIds.has(patient.id) && !priorPhones.has(patient.phone)
         );
+      } else if (audience === "latest_import") {
+        let latestImportAt: string | null = null;
+        for (const patient of recipients) {
+          const stamp = patient.last_imported_at;
+          if (!stamp) continue;
+          if (!latestImportAt || stamp > latestImportAt) latestImportAt = stamp;
+        }
+        if (!latestImportAt) {
+          return json({ error: "No patients from the latest import." }, 400);
+        }
+        recipients = recipients.filter(
+          (patient) => patient.last_imported_at === latestImportAt
+        );
       }
     }
 
@@ -194,7 +216,9 @@ Deno.serve(async (req) => {
           error:
             payload.audience === "never_messaged"
               ? "No never-messaged patients are eligible."
-              : "No recipients to message.",
+              : payload.audience === "latest_import"
+                ? "No patients from the latest import."
+                : "No recipients to message.",
         },
         400
       );

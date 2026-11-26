@@ -44,12 +44,14 @@ import {
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 type MessageKind = 'broadcast' | 'single' | 'feedback_invite';
-type Audience = 'all' | 'never_messaged';
+type Audience = 'all' | 'never_messaged' | 'latest_import';
 
 type Patient = {
   id: string;
   name: string;
   phone: string;
+  last_imported_at?: string | null;
+  source_filename?: string | null;
 };
 
 type SmsMessage = {
@@ -141,12 +143,32 @@ export default function Messages() {
   const recipientRequestRef = useRef(0);
 
   const parts = useMemo(() => countSmsParts(body), [body]);
+  const latestImportAt = useMemo(() => {
+    let latest: string | null = null;
+    for (const patient of patients) {
+      const stamp = patient.last_imported_at;
+      if (!stamp) continue;
+      if (!latest || stamp > latest) latest = stamp;
+    }
+    return latest;
+  }, [patients]);
+  const latestImportFilename = useMemo(() => {
+    if (!latestImportAt) return null;
+    const match = patients.find((patient) => patient.last_imported_at === latestImportAt);
+    return match?.source_filename ?? null;
+  }, [patients, latestImportAt]);
   const eligiblePatients = useMemo(() => {
-    if (audience !== 'never_messaged') return patients;
-    return patients.filter(
-      (patient) => !messagedPatientIds.has(patient.id) && !messagedPhones.has(patient.phone)
-    );
-  }, [patients, audience, messagedPatientIds, messagedPhones]);
+    if (audience === 'never_messaged') {
+      return patients.filter(
+        (patient) => !messagedPatientIds.has(patient.id) && !messagedPhones.has(patient.phone)
+      );
+    }
+    if (audience === 'latest_import') {
+      if (!latestImportAt) return [];
+      return patients.filter((patient) => patient.last_imported_at === latestImportAt);
+    }
+    return patients;
+  }, [patients, audience, messagedPatientIds, messagedPhones, latestImportAt]);
   const eligibleCount = eligiblePatients.length;
   const selectedPatient = useMemo(
     () => patients.find((patient) => patient.id === patientId) ?? null,
@@ -181,7 +203,9 @@ export default function Messages() {
         : kind !== 'single' && eligibleCount <= 0
           ? audience === 'never_messaged'
             ? 'No never-messaged patients are eligible right now.'
-            : 'No eligible patients to message.'
+            : audience === 'latest_import'
+              ? 'No patients from the latest import.'
+              : 'No eligible patients to message.'
           : '';
   const filteredRecipients = useMemo(() => {
     if (recipientFilter === 'all') return recipients;
@@ -234,7 +258,7 @@ export default function Messages() {
         fetchAllPages<Patient>((from, to) =>
           supabase
             .from('patients')
-            .select('id, name, phone')
+            .select('id, name, phone, last_imported_at, source_filename')
             .eq('do_not_message', false)
             .order('id')
             .range(from, to)
@@ -511,7 +535,8 @@ export default function Messages() {
           <CardHeader className="space-y-1 pb-3">
             <CardTitle className="text-base font-semibold">Compose message</CardTitle>
             <CardDescription>
-              Do-not-message patients are skipped. Use never messaged for first-time SMS only.
+              Do-not-message patients are skipped. Use latest import for everyone from the last
+              Excel upload, including returning patients.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -606,6 +631,7 @@ export default function Messages() {
                     <SelectContent>
                       <SelectItem value="all">All eligible patients</SelectItem>
                       <SelectItem value="never_messaged">Never messaged</SelectItem>
+                      <SelectItem value="latest_import">Latest import</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -614,7 +640,11 @@ export default function Messages() {
                     ? 'Loading eligible recipients…'
                     : audience === 'never_messaged'
                       ? `${eligibleCount} never-messaged patient${eligibleCount === 1 ? '' : 's'}`
-                      : `${eligibleCount} eligible patient${eligibleCount === 1 ? '' : 's'}`}
+                      : audience === 'latest_import'
+                        ? `${eligibleCount} from latest import${
+                            latestImportFilename ? ` (${latestImportFilename})` : ''
+                          }`
+                        : `${eligibleCount} eligible patient${eligibleCount === 1 ? '' : 's'}`}
                 </p>
               </div>
             )}
@@ -851,7 +881,11 @@ export default function Messages() {
             <AlertDialogDescription>
               {audience === 'never_messaged'
                 ? `This ${kindLabel(kind).toLowerCase()} will go only to patients who have never received a successful SMS.`
-                : `This ${kindLabel(kind).toLowerCase()} will be sent to every eligible patient.`}{' '}
+                : audience === 'latest_import'
+                  ? `This ${kindLabel(kind).toLowerCase()} will go to everyone from the latest patient import${
+                      latestImportFilename ? ` (${latestImportFilename})` : ''
+                    }, including returning patients.`
+                  : `This ${kindLabel(kind).toLowerCase()} will be sent to every eligible patient.`}{' '}
               Patients marked do not message are excluded.
             </AlertDialogDescription>
           </AlertDialogHeader>

@@ -4,6 +4,7 @@ create table if not exists public.patients (
   phone text not null,
   do_not_message boolean not null default false,
   source_filename text,
+  last_imported_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint patients_phone_unique unique (phone)
@@ -38,6 +39,8 @@ create index if not exists sms_recipients_message_id_idx on public.sms_recipient
 create index if not exists sms_recipients_provider_message_id_idx
   on public.sms_recipients (provider_message_id);
 create index if not exists patients_name_idx on public.patients (name);
+create index if not exists patients_last_imported_at_idx
+  on public.patients (last_imported_at desc nulls last);
 
 alter table public.patients enable row level security;
 alter table public.sms_messages enable row level security;

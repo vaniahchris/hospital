@@ -333,11 +333,12 @@ export default function Patients() {
     setImporting(true);
     setError('');
     setSuccess('');
-    const updatedAt = new Date().toISOString();
+    const importedAt = new Date().toISOString();
     const rows = preview.valid.map((patient) => ({
       ...patient,
       source_filename: filename,
-      updated_at: updatedAt,
+      last_imported_at: importedAt,
+      updated_at: importedAt,
     }));
     const { error: importError } = await createClient()
       .from('patients')
